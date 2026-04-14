@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Share,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import {
@@ -21,6 +22,8 @@ import {
   Copy,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import Colors from '@/constants/colors';
 import { useInvoices } from '@/context/InvoiceContext';
 import {
@@ -29,6 +32,7 @@ import {
   calculateLineItemTotal,
   calculateInvoiceSubtotal,
 } from '@/types/invoice';
+import { generateInvoiceHtml } from '@/utils/invoiceHtml';
 
 export default function InvoicePreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -68,34 +72,90 @@ export default function InvoicePreviewScreen() {
     );
   }, [invoice, duplicateInvoice, router]);
 
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+
+  const generatePdf = useCallback(async (): Promise<string | null> => {
+    if (!invoice) return null;
+    try {
+      console.log('[InvoicePreview] Generating PDF for:', invoice.invoiceNumber);
+      const html = generateInvoiceHtml(invoice);
+      const { uri } = await Print.printToFileAsync({
+        html,
+        base64: false,
+      });
+      console.log('[InvoicePreview] PDF generated at:', uri);
+      return uri;
+    } catch (error) {
+      console.log('[InvoicePreview] PDF generation error:', error);
+      return null;
+    }
+  }, [invoice]);
+
   const handleShare = useCallback(async () => {
     if (!invoice) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const itemLines = invoice.lineItems
-      .map(
-        (item) =>
-          `  ${item.description} — ${item.quantity} × ${formatCurrency(item.rate, invoice.currency)} = ${formatCurrency(calculateLineItemTotal(item), invoice.currency)}`
-      )
-      .join('\n');
-    const text = `Invoice ${invoice.invoiceNumber}\nFrom: ${invoice.businessName}\nTo: ${invoice.clientName}\nDate: ${formatDate(invoice.issueDate)}\nDue: ${formatDate(invoice.dueDate)}\n\nItems:\n${itemLines}\n\nTotal: ${formatCurrency(subtotal, invoice.currency)}${invoice.notes ? `\n\nNotes: ${invoice.notes}` : ''}`;
+    setIsGeneratingPdf(true);
     try {
-      await Share.share({
-        message: text,
-        title: `Invoice ${invoice.invoiceNumber}`,
-      });
+      if (Platform.OS === 'web') {
+        const html = generateInvoiceHtml(invoice);
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.print();
+        }
+        return;
+      }
+      const uri = await generatePdf();
+      if (!uri) {
+        Alert.alert('Error', 'Could not generate PDF. Please try again.');
+        return;
+      }
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice ${invoice.invoiceNumber}`,
+          UTI: 'com.adobe.pdf',
+        });
+        console.log('[InvoicePreview] Shared PDF successfully');
+      } else {
+        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+      }
     } catch (e) {
       console.log('[InvoicePreview] Share error:', e);
+      Alert.alert('Share Failed', 'Something went wrong while sharing. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
     }
-  }, [invoice, subtotal]);
+  }, [invoice, generatePdf]);
 
-  const handleExportPDF = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      'Export PDF',
-      'PDF export will be available in a future update.',
-      [{ text: 'OK' }]
-    );
-  }, []);
+  const handleExportPDF = useCallback(async () => {
+    if (!invoice) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsGeneratingPdf(true);
+    try {
+      if (Platform.OS === 'web') {
+        const html = generateInvoiceHtml(invoice);
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.print();
+        }
+        return;
+      }
+      const html = generateInvoiceHtml(invoice);
+      await Print.printAsync({ html });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log('[InvoicePreview] Print dialog opened');
+    } catch (e) {
+      console.log('[InvoicePreview] Export PDF error:', e);
+      Alert.alert('Export Failed', 'Could not generate the PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }, [invoice]);
 
   const handleMarkPaid = useCallback(() => {
     if (!invoice) return;
@@ -375,10 +435,11 @@ export default function InvoicePreviewScreen() {
               <Text style={styles.actionLabel}>Duplicate</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, isGeneratingPdf && styles.actionCardDisabled]}
               onPress={handleShare}
               activeOpacity={0.7}
               testID="share-button"
+              disabled={isGeneratingPdf}
             >
               <View
                 style={[
@@ -386,17 +447,22 @@ export default function InvoicePreviewScreen() {
                   { backgroundColor: Colors.successBg },
                 ]}
               >
-                <Send size={16} color={Colors.success} />
+                {isGeneratingPdf ? (
+                  <ActivityIndicator size="small" color={Colors.success} />
+                ) : (
+                  <Send size={16} color={Colors.success} />
+                )}
               </View>
-              <Text style={styles.actionLabel}>Share</Text>
+              <Text style={styles.actionLabel}>Share PDF</Text>
             </TouchableOpacity>
           </View>
           <View style={[styles.actionsRow, { marginTop: 10 }]}>
             <TouchableOpacity
-              style={styles.actionCard}
+              style={[styles.actionCard, isGeneratingPdf && styles.actionCardDisabled]}
               onPress={handleExportPDF}
               activeOpacity={0.7}
               testID="export-pdf-button"
+              disabled={isGeneratingPdf}
             >
               <View
                 style={[
@@ -404,9 +470,13 @@ export default function InvoicePreviewScreen() {
                   { backgroundColor: Colors.surfaceAlt },
                 ]}
               >
-                <Download size={16} color={Colors.textSecondary} />
+                {isGeneratingPdf ? (
+                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                ) : (
+                  <Download size={16} color={Colors.textSecondary} />
+                )}
               </View>
-              <Text style={styles.actionLabel}>Export</Text>
+              <Text style={styles.actionLabel}>Print PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionCard}
@@ -740,6 +810,9 @@ const styles = StyleSheet.create({
   },
   actionCardPlaceholder: {
     flex: 1,
+  },
+  actionCardDisabled: {
+    opacity: 0.6,
   },
   actionIconWrap: {
     width: 36,
