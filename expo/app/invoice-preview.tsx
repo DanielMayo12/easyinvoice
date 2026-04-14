@@ -6,9 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Share,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import {
@@ -33,8 +31,10 @@ import {
   formatDate,
   calculateLineItemTotal,
   calculateInvoiceSubtotal,
-} from '@/types/invoice';
+} from '@/utils/invoice';
 import { generateInvoiceHtml } from '@/utils/invoiceHtml';
+import StatusBadge, { getStatusConfig } from '@/components/StatusBadge';
+import ActionCard from '@/components/ActionCard';
 
 export default function InvoicePreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -47,6 +47,8 @@ export default function InvoicePreviewScreen() {
     () => (invoice ? calculateInvoiceSubtotal(invoice.lineItems) : 0),
     [invoice]
   );
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   const handleEdit = useCallback(() => {
     if (!invoice) return;
@@ -76,24 +78,19 @@ export default function InvoicePreviewScreen() {
     );
   }, [invoice, duplicateInvoice, router]);
 
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
-
   const generatePdf = useCallback(async (): Promise<string | null> => {
     if (!invoice) return null;
     try {
       console.log('[InvoicePreview] Generating PDF for:', invoice.invoiceNumber);
       const html = generateInvoiceHtml(invoice, logoUri);
-      const { uri } = await Print.printToFileAsync({
-        html,
-        base64: false,
-      });
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
       console.log('[InvoicePreview] PDF generated at:', uri);
       return uri;
     } catch (error) {
       console.log('[InvoicePreview] PDF generation error:', error);
       return null;
     }
-  }, [invoice]);
+  }, [invoice, logoUri]);
 
   const handleShare = useCallback(async () => {
     if (!invoice) return;
@@ -132,7 +129,7 @@ export default function InvoicePreviewScreen() {
     } finally {
       setIsGeneratingPdf(false);
     }
-  }, [invoice, generatePdf]);
+  }, [invoice, generatePdf, logoUri]);
 
   const handleExportPDF = useCallback(async () => {
     if (!invoice) return;
@@ -159,7 +156,7 @@ export default function InvoicePreviewScreen() {
     } finally {
       setIsGeneratingPdf(false);
     }
-  }, [invoice]);
+  }, [invoice, logoUri]);
 
   const handleMarkPaid = useCallback(() => {
     if (!invoice) return;
@@ -202,29 +199,13 @@ export default function InvoicePreviewScreen() {
           <FileText size={32} color={Colors.textTertiary} />
         </View>
         <Text style={styles.emptyTitle}>Invoice not found</Text>
-        <Text style={styles.emptySubtitle}>
-          This invoice may have been deleted
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.emptyBackBtn}
-        >
+        <Text style={styles.emptySubtitle}>This invoice may have been deleted</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.emptyBackBtn}>
           <Text style={styles.emptyBackBtnText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
-
-  const statusConfig =
-    invoice.status === 'paid'
-      ? { color: Colors.success, bg: Colors.successBg, label: 'Paid' }
-      : invoice.status === 'sent'
-        ? { color: Colors.primary, bg: Colors.primaryBg, label: 'Sent' }
-        : {
-            color: Colors.textTertiary,
-            bg: Colors.surfaceAlt,
-            label: 'Draft',
-          };
 
   const nextAction =
     invoice.status === 'draft'
@@ -247,18 +228,7 @@ export default function InvoicePreviewScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.statusSection}>
-          <View
-            style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}
-          >
-            <View
-              style={[styles.statusDot, { backgroundColor: statusConfig.color }]}
-            />
-            <Text
-              style={[styles.statusBadgeText, { color: statusConfig.color }]}
-            >
-              {statusConfig.label}
-            </Text>
-          </View>
+          <StatusBadge status={invoice.status} />
           {nextAction && (
             <TouchableOpacity
               style={styles.nextActionBtn}
@@ -274,7 +244,6 @@ export default function InvoicePreviewScreen() {
 
         <View style={styles.document}>
           <View style={styles.docTopBar} />
-
           <View style={styles.docContent}>
             <View style={styles.docHeader}>
               <View style={styles.docHeaderLeft}>
@@ -287,22 +256,16 @@ export default function InvoicePreviewScreen() {
                   />
                 ) : null}
                 <Text style={styles.docInvoiceWord}>INVOICE</Text>
-                <Text style={styles.docInvoiceNum}>
-                  {invoice.invoiceNumber}
-                </Text>
+                <Text style={styles.docInvoiceNum}>{invoice.invoiceNumber}</Text>
               </View>
               <View style={styles.docHeaderRight}>
                 <View style={styles.docDateBlock}>
                   <Text style={styles.docDateLabel}>Issued</Text>
-                  <Text style={styles.docDateValue}>
-                    {formatDate(invoice.issueDate)}
-                  </Text>
+                  <Text style={styles.docDateValue}>{formatDate(invoice.issueDate)}</Text>
                 </View>
                 <View style={styles.docDateBlock}>
                   <Text style={styles.docDateLabel}>Due</Text>
-                  <Text style={styles.docDateValue}>
-                    {formatDate(invoice.dueDate)}
-                  </Text>
+                  <Text style={styles.docDateValue}>{formatDate(invoice.dueDate)}</Text>
                 </View>
               </View>
             </View>
@@ -312,74 +275,39 @@ export default function InvoicePreviewScreen() {
             <View style={styles.partiesRow}>
               <View style={styles.partyCol}>
                 <Text style={styles.partyTag}>FROM</Text>
-                {invoice.businessName ? (
-                  <Text style={styles.partyName}>{invoice.businessName}</Text>
-                ) : null}
-                {invoice.businessEmail ? (
-                  <Text style={styles.partyDetail}>
-                    {invoice.businessEmail}
-                  </Text>
-                ) : null}
-                {invoice.businessPhone ? (
-                  <Text style={styles.partyDetail}>
-                    {invoice.businessPhone}
-                  </Text>
-                ) : null}
-                {invoice.businessAddress ? (
-                  <Text style={styles.partyDetail}>
-                    {invoice.businessAddress}
-                  </Text>
-                ) : null}
+                {invoice.businessName ? <Text style={styles.partyName}>{invoice.businessName}</Text> : null}
+                {invoice.businessEmail ? <Text style={styles.partyDetail}>{invoice.businessEmail}</Text> : null}
+                {invoice.businessPhone ? <Text style={styles.partyDetail}>{invoice.businessPhone}</Text> : null}
+                {invoice.businessAddress ? <Text style={styles.partyDetail}>{invoice.businessAddress}</Text> : null}
               </View>
               <View style={styles.partyCol}>
                 <Text style={styles.partyTag}>BILL TO</Text>
                 <Text style={styles.partyName}>{invoice.clientName}</Text>
-                {invoice.clientEmail ? (
-                  <Text style={styles.partyDetail}>
-                    {invoice.clientEmail}
-                  </Text>
-                ) : null}
+                {invoice.clientEmail ? <Text style={styles.partyDetail}>{invoice.clientEmail}</Text> : null}
               </View>
             </View>
 
             <View style={styles.tableSection}>
               <View style={styles.tableHead}>
-                <Text style={[styles.tableHeadCell, styles.descCol]}>
-                  Description
-                </Text>
+                <Text style={[styles.tableHeadCell, styles.descCol]}>Description</Text>
                 <Text style={[styles.tableHeadCell, styles.qtyCol]}>Qty</Text>
                 <Text style={[styles.tableHeadCell, styles.rateCol]}>Rate</Text>
-                <Text style={[styles.tableHeadCell, styles.amtCol]}>
-                  Amount
-                </Text>
+                <Text style={[styles.tableHeadCell, styles.amtCol]}>Amount</Text>
               </View>
               {invoice.lineItems.map((item, index) => (
                 <View
                   key={item.id}
-                  style={[
-                    styles.tableRow,
-                    index % 2 === 0 && styles.tableRowAlt,
-                  ]}
+                  style={[styles.tableRow, index % 2 === 0 && styles.tableRowAlt]}
                 >
-                  <Text
-                    style={[styles.tableCell, styles.descCol]}
-                    numberOfLines={2}
-                  >
+                  <Text style={[styles.tableCell, styles.descCol]} numberOfLines={2}>
                     {item.description}
                   </Text>
-                  <Text style={[styles.tableCell, styles.qtyCol]}>
-                    {item.quantity}
-                  </Text>
+                  <Text style={[styles.tableCell, styles.qtyCol]}>{item.quantity}</Text>
                   <Text style={[styles.tableCell, styles.rateCol]}>
                     {formatCurrency(item.rate, invoice.currency)}
                   </Text>
-                  <Text
-                    style={[styles.tableCell, styles.amtCol, styles.amtBold]}
-                  >
-                    {formatCurrency(
-                      calculateLineItemTotal(item),
-                      invoice.currency
-                    )}
+                  <Text style={[styles.tableCell, styles.amtCol, styles.amtBold]}>
+                    {formatCurrency(calculateLineItemTotal(item), invoice.currency)}
                   </Text>
                 </View>
               ))}
@@ -414,100 +342,50 @@ export default function InvoicePreviewScreen() {
 
         <View style={styles.actionsSection}>
           <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.actionCard}
+            <ActionCard
+              icon={<Pencil size={16} color={Colors.warning} />}
+              label="Edit"
+              iconBg={Colors.warningBg}
               onPress={handleEdit}
-              activeOpacity={0.7}
               testID="edit-button"
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: Colors.warningBg },
-                ]}
-              >
-                <Pencil size={16} color={Colors.warning} />
-              </View>
-              <Text style={styles.actionLabel}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
+            />
+            <ActionCard
+              icon={<Copy size={16} color={Colors.primary} />}
+              label="Duplicate"
+              iconBg={Colors.primaryBg}
               onPress={handleDuplicate}
-              activeOpacity={0.7}
               testID="duplicate-button"
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: Colors.primaryBg },
-                ]}
-              >
-                <Copy size={16} color={Colors.primary} />
-              </View>
-              <Text style={styles.actionLabel}>Duplicate</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionCard, isGeneratingPdf && styles.actionCardDisabled]}
+            />
+            <ActionCard
+              icon={<Send size={16} color={Colors.success} />}
+              label="Share PDF"
+              iconBg={Colors.successBg}
               onPress={handleShare}
-              activeOpacity={0.7}
-              testID="share-button"
               disabled={isGeneratingPdf}
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: Colors.successBg },
-                ]}
-              >
-                {isGeneratingPdf ? (
-                  <ActivityIndicator size="small" color={Colors.success} />
-                ) : (
-                  <Send size={16} color={Colors.success} />
-                )}
-              </View>
-              <Text style={styles.actionLabel}>Share PDF</Text>
-            </TouchableOpacity>
+              loading={isGeneratingPdf}
+              loadingColor={Colors.success}
+              testID="share-button"
+            />
           </View>
           <View style={[styles.actionsRow, { marginTop: 10 }]}>
-            <TouchableOpacity
-              style={[styles.actionCard, isGeneratingPdf && styles.actionCardDisabled]}
+            <ActionCard
+              icon={<Download size={16} color={Colors.textSecondary} />}
+              label="Print PDF"
+              iconBg={Colors.surfaceAlt}
               onPress={handleExportPDF}
-              activeOpacity={0.7}
-              testID="export-pdf-button"
               disabled={isGeneratingPdf}
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: Colors.surfaceAlt },
-                ]}
-              >
-                {isGeneratingPdf ? (
-                  <ActivityIndicator size="small" color={Colors.textSecondary} />
-                ) : (
-                  <Download size={16} color={Colors.textSecondary} />
-                )}
-              </View>
-              <Text style={styles.actionLabel}>Print PDF</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionCard}
+              loading={isGeneratingPdf}
+              loadingColor={Colors.textSecondary}
+              testID="export-pdf-button"
+            />
+            <ActionCard
+              icon={<Trash2 size={16} color={Colors.danger} />}
+              label="Delete"
+              iconBg={Colors.dangerBg}
               onPress={handleDelete}
-              activeOpacity={0.7}
+              labelColor={Colors.danger}
               testID="delete-button"
-            >
-              <View
-                style={[
-                  styles.actionIconWrap,
-                  { backgroundColor: Colors.dangerBg },
-                ]}
-              >
-                <Trash2 size={16} color={Colors.danger} />
-              </View>
-              <Text style={[styles.actionLabel, { color: Colors.danger }]}>
-                Delete
-              </Text>
-            </TouchableOpacity>
+            />
             <View style={styles.actionCardPlaceholder} />
           </View>
         </View>
@@ -574,23 +452,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
     marginBottom: 16,
-  },
-  statusBadge: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusBadgeText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
   },
   nextActionBtn: {
     flexDirection: 'row' as const,
@@ -727,21 +588,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
   },
-  descCol: {
-    flex: 3,
-  },
-  qtyCol: {
-    flex: 1,
-    textAlign: 'center' as const,
-  },
-  rateCol: {
-    flex: 1.5,
-    textAlign: 'right' as const,
-  },
-  amtCol: {
-    flex: 1.5,
-    textAlign: 'right' as const,
-  },
+  descCol: { flex: 3 },
+  qtyCol: { flex: 1, textAlign: 'center' as const },
+  rateCol: { flex: 1.5, textAlign: 'right' as const },
+  amtCol: { flex: 1.5, textAlign: 'right' as const },
   tableRow: {
     flexDirection: 'row' as const,
     paddingVertical: 12,
@@ -817,32 +667,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     gap: 10,
   },
-  actionCard: {
-    flex: 1,
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center' as const,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
   actionCardPlaceholder: {
     flex: 1,
-  },
-  actionCardDisabled: {
-    opacity: 0.6,
-  },
-  actionIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  actionLabel: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.text,
   },
 });

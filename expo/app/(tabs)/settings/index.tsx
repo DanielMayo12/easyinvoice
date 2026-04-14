@@ -29,7 +29,8 @@ import {
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useSettings } from '@/context/SettingsContext';
-import { CURRENCIES } from '@/types/invoice';
+import { CURRENCIES } from '@/constants/currencies';
+import PrimaryButton, { buttonTextStyle } from '@/components/PrimaryButton';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -119,9 +120,7 @@ export default function SettingsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>
-            Configure your business defaults
-          </Text>
+          <Text style={styles.subtitle}>Configure your business defaults</Text>
         </View>
 
         <Text style={styles.sectionLabel}>Business Logo</Text>
@@ -150,9 +149,7 @@ export default function SettingsScreen() {
                     activeOpacity={0.7}
                   >
                     <Trash2 size={15} color={Colors.danger} />
-                    <Text style={[styles.logoActionText, { color: Colors.danger }]}>
-                      Remove
-                    </Text>
+                    <Text style={[styles.logoActionText, { color: Colors.danger }]}>Remove</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -167,9 +164,7 @@ export default function SettingsScreen() {
                   <ImageIcon size={24} color={Colors.textTertiary} />
                 </View>
                 <Text style={styles.logoUploadTitle}>Add Your Logo</Text>
-                <Text style={styles.logoUploadHint}>
-                  Tap to select from your photo library
-                </Text>
+                <Text style={styles.logoUploadHint}>Tap to select from your photo library</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -178,9 +173,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>Business Details</Text>
         <View style={styles.card}>
           <View style={styles.inputRow}>
-            <View
-              style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}>
               <Building2 size={16} color={Colors.primary} />
             </View>
             <View style={styles.inputField}>
@@ -197,9 +190,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.separator} />
           <View style={styles.inputRow}>
-            <View
-              style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}>
               <Mail size={16} color={Colors.primary} />
             </View>
             <View style={styles.inputField}>
@@ -218,9 +209,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.separator} />
           <View style={styles.inputRow}>
-            <View
-              style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}>
               <Phone size={16} color={Colors.primary} />
             </View>
             <View style={styles.inputField}>
@@ -238,9 +227,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.separator} />
           <View style={styles.inputRow}>
-            <View
-              style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.primaryBg }]}>
               <MapPin size={16} color={Colors.primary} />
             </View>
             <View style={styles.inputField}>
@@ -265,9 +252,7 @@ export default function SettingsScreen() {
             activeOpacity={0.7}
             testID="currency-selector"
           >
-            <View
-              style={[styles.inputIcon, { backgroundColor: Colors.warningBg }]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.warningBg }]}>
               <DollarSign size={16} color={Colors.warning} />
             </View>
             <View style={styles.inputField}>
@@ -287,8 +272,7 @@ export default function SettingsScreen() {
                   key={curr.code}
                   style={[
                     styles.currencyOption,
-                    settings.defaultCurrency === curr.code &&
-                      styles.currencyOptionActive,
+                    settings.defaultCurrency === curr.code && styles.currencyOptionActive,
                   ]}
                   onPress={() => handleCurrencySelect(curr.code)}
                   activeOpacity={0.7}
@@ -309,12 +293,7 @@ export default function SettingsScreen() {
           )}
           <View style={styles.separator} />
           <View style={styles.inputRow}>
-            <View
-              style={[
-                styles.inputIcon,
-                { backgroundColor: Colors.surfaceAlt },
-              ]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.surfaceAlt }]}>
               <Palette size={16} color={Colors.textSecondary} />
             </View>
             <View style={styles.inputField}>
@@ -327,12 +306,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>About</Text>
         <View style={styles.card}>
           <View style={styles.inputRow}>
-            <View
-              style={[
-                styles.inputIcon,
-                { backgroundColor: Colors.surfaceAlt },
-              ]}
-            >
+            <View style={[styles.inputIcon, { backgroundColor: Colors.surfaceAlt }]}>
               <Info size={16} color={Colors.textSecondary} />
             </View>
             <View style={styles.inputField}>
@@ -342,21 +316,21 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.saveButton, saved && styles.saveButtonSaved]}
+        <PrimaryButton
           onPress={handleSave}
-          activeOpacity={0.85}
+          variant={saved ? 'success' : 'primary'}
           testID="save-settings-button"
+          style={{ marginTop: 4 }}
         >
           {saved ? (
-            <View style={styles.saveButtonInner}>
+            <>
               <Check size={18} color={Colors.textInverse} />
-              <Text style={styles.saveButtonText}>Saved!</Text>
-            </View>
+              <Text style={buttonTextStyle.text}>Saved!</Text>
+            </>
           ) : (
-            <Text style={styles.saveButtonText}>Save Settings</Text>
+            <Text style={buttonTextStyle.text}>Save Settings</Text>
           )}
-        </TouchableOpacity>
+        </PrimaryButton>
 
         <View style={{ height: 20 }} />
       </ScrollView>
@@ -566,40 +540,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textTertiary,
     marginTop: 1,
-  },
-  saveButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center' as const,
-    marginTop: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-      android: { elevation: 4 },
-      web: {
-        shadowColor: Colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-    }),
-  },
-  saveButtonSaved: {
-    backgroundColor: Colors.success,
-  },
-  saveButtonInner: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: Colors.textInverse,
   },
 });

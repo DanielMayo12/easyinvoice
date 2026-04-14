@@ -15,24 +15,17 @@ import {
   Plus,
   FileText,
   TrendingUp,
-  ChevronRight,
-  Receipt,
   ArrowUpRight,
   Zap,
-  MoreHorizontal,
-  Pencil,
-  Copy,
-  Trash2,
+  Receipt,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useInvoices } from '@/context/InvoiceContext';
 import { useSettings } from '@/context/SettingsContext';
-import {
-  formatCurrency,
-  formatDate,
-  calculateInvoiceSubtotal,
-} from '@/types/invoice';
+import { formatCurrency } from '@/utils/invoice';
+import EmptyState from '@/components/EmptyState';
+import InvoiceCard from '@/components/InvoiceCard';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -141,24 +134,6 @@ export default function HomeScreen() {
     [deleteInvoice]
   );
 
-  const getStatusConfig = useCallback(
-    (status: string): { color: string; bg: string; label: string } => {
-      switch (status) {
-        case 'paid':
-          return { color: Colors.success, bg: Colors.successBg, label: 'Paid' };
-        case 'sent':
-          return { color: Colors.primary, bg: Colors.primaryBg, label: 'Sent' };
-        default:
-          return {
-            color: Colors.textTertiary,
-            bg: Colors.surfaceAlt,
-            label: 'Draft',
-          };
-      }
-    },
-    []
-  );
-
   const paidCount = invoices.filter((i) => i.status === 'paid').length;
 
   return (
@@ -184,9 +159,7 @@ export default function HomeScreen() {
                   </View>
                   <Text style={styles.appName}>EasyInvoice</Text>
                 </View>
-                <Text style={styles.subtitle}>
-                  Professional invoices, fast.
-                </Text>
+                <Text style={styles.subtitle}>Professional invoices, fast.</Text>
               </View>
             </View>
           </View>
@@ -201,52 +174,29 @@ export default function HomeScreen() {
               <View style={styles.createButtonContent}>
                 <View style={styles.createButtonLeft}>
                   <View style={styles.createButtonIconWrap}>
-                    <Plus
-                      size={20}
-                      color={Colors.textInverse}
-                      strokeWidth={2.5}
-                    />
+                    <Plus size={20} color={Colors.textInverse} strokeWidth={2.5} />
                   </View>
                   <View>
-                    <Text style={styles.createButtonTitle}>
-                      Create New Invoice
-                    </Text>
-                    <Text style={styles.createButtonSub}>
-                      Ready in under 2 minutes
-                    </Text>
+                    <Text style={styles.createButtonTitle}>Create New Invoice</Text>
+                    <Text style={styles.createButtonSub}>Ready in under 2 minutes</Text>
                   </View>
                 </View>
-                <ArrowUpRight
-                  size={20}
-                  color="rgba(255,255,255,0.5)"
-                  strokeWidth={2}
-                />
+                <ArrowUpRight size={20} color="rgba(255,255,255,0.5)" strokeWidth={2} />
               </View>
             </TouchableOpacity>
           </Animated.View>
 
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <View
-                style={[styles.statIcon, { backgroundColor: Colors.primaryBg }]}
-              >
+              <View style={[styles.statIcon, { backgroundColor: Colors.primaryBg }]}>
                 <FileText size={16} color={Colors.primary} strokeWidth={2} />
               </View>
               <Text style={styles.statValue}>{invoices.length}</Text>
               <Text style={styles.statLabel}>Total Invoices</Text>
             </View>
             <View style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: Colors.successBg },
-                ]}
-              >
-                <TrendingUp
-                  size={16}
-                  color={Colors.success}
-                  strokeWidth={2}
-                />
+              <View style={[styles.statIcon, { backgroundColor: Colors.successBg }]}>
+                <TrendingUp size={16} color={Colors.success} strokeWidth={2} />
               </View>
               <Text style={styles.statValue} numberOfLines={1}>
                 {formatCurrency(totalAmount, settings.defaultCurrency)}
@@ -254,12 +204,7 @@ export default function HomeScreen() {
               <Text style={styles.statLabel}>Total Invoiced</Text>
             </View>
             <View style={styles.statCard}>
-              <View
-                style={[
-                  styles.statIcon,
-                  { backgroundColor: Colors.warningBg },
-                ]}
-              >
+              <View style={[styles.statIcon, { backgroundColor: Colors.warningBg }]}>
                 <Receipt size={16} color={Colors.warning} strokeWidth={2} />
               </View>
               <Text style={styles.statValue}>{paidCount}</Text>
@@ -272,10 +217,7 @@ export default function HomeScreen() {
               {showAll ? 'All Invoices' : 'Recent Invoices'}
             </Text>
             {invoices.length > 5 && (
-              <TouchableOpacity
-                onPress={() => setShowAll((v) => !v)}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity onPress={() => setShowAll((v) => !v)} activeOpacity={0.7}>
                 <Text style={styles.viewAllText}>
                   {showAll ? 'Show Less' : `View All (${invoices.length})`}
                 </Text>
@@ -289,129 +231,29 @@ export default function HomeScreen() {
           </View>
 
           {displayedInvoices.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconOuter}>
-                <View style={styles.emptyIconInner}>
-                  <FileText size={28} color={Colors.textTertiary} />
-                </View>
-              </View>
-              <Text style={styles.emptyTitle}>No invoices yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Tap the button above to create your first professional invoice
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={handleCreatePress}
-                activeOpacity={0.8}
-              >
-                <Plus size={16} color={Colors.primary} strokeWidth={2.5} />
-                <Text style={styles.emptyButtonText}>Get Started</Text>
-              </TouchableOpacity>
-            </View>
+            <EmptyState
+              icon={<FileText size={28} color={Colors.textTertiary} />}
+              title="No invoices yet"
+              subtitle="Tap the button above to create your first professional invoice"
+              actionLabel="Get Started"
+              actionIcon={<Plus size={16} color={Colors.primary} strokeWidth={2.5} />}
+              onAction={handleCreatePress}
+            />
           ) : (
             <View style={styles.invoiceList}>
-              {displayedInvoices.map((inv, index) => {
-                const total = calculateInvoiceSubtotal(inv.lineItems);
-                const statusConfig = getStatusConfig(inv.status);
-                const isMenuOpen = activeMenuId === inv.id;
-                return (
-                  <View key={inv.id}>
-                    <TouchableOpacity
-                      style={[
-                        styles.invoiceCard,
-                        index === displayedInvoices.length - 1 && { marginBottom: 0 },
-                      ]}
-                      onPress={() => handleInvoicePress(inv.id)}
-                      activeOpacity={0.7}
-                      testID={`invoice-card-${inv.id}`}
-                    >
-                      <View style={styles.invoiceCardBody}>
-                        <View style={styles.invoiceCardTop}>
-                          <View style={styles.invoiceCardMeta}>
-                            <Text style={styles.invoiceNumber}>
-                              {inv.invoiceNumber}
-                            </Text>
-                            <View
-                              style={[
-                                styles.statusPill,
-                                { backgroundColor: statusConfig.bg },
-                              ]}
-                            >
-                              <View
-                                style={[
-                                  styles.statusDot,
-                                  { backgroundColor: statusConfig.color },
-                                ]}
-                              />
-                              <Text
-                                style={[
-                                  styles.statusLabel,
-                                  { color: statusConfig.color },
-                                ]}
-                              >
-                                {statusConfig.label}
-                              </Text>
-                            </View>
-                          </View>
-                          <View style={styles.invoiceCardActions}>
-                            <Text style={styles.invoiceAmount}>
-                              {formatCurrency(total, inv.currency)}
-                            </Text>
-                            <TouchableOpacity
-                              style={styles.menuBtn}
-                              onPress={() => handleMenuToggle(inv.id)}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                              <MoreHorizontal size={16} color={Colors.textTertiary} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        <View style={styles.invoiceCardBottom}>
-                          <Text style={styles.clientName} numberOfLines={1}>
-                            {inv.clientName || 'No client'}
-                          </Text>
-                          <Text style={styles.invoiceDate}>
-                            {formatDate(inv.issueDate)}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-
-                    {isMenuOpen && (
-                      <View style={styles.contextMenu}>
-                        <TouchableOpacity
-                          style={styles.contextMenuItem}
-                          onPress={() => handleEdit(inv.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Pencil size={14} color={Colors.warning} />
-                          <Text style={styles.contextMenuText}>Edit</Text>
-                        </TouchableOpacity>
-                        <View style={styles.contextMenuDivider} />
-                        <TouchableOpacity
-                          style={styles.contextMenuItem}
-                          onPress={() => handleDuplicate(inv.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Copy size={14} color={Colors.primary} />
-                          <Text style={styles.contextMenuText}>Duplicate</Text>
-                        </TouchableOpacity>
-                        <View style={styles.contextMenuDivider} />
-                        <TouchableOpacity
-                          style={styles.contextMenuItem}
-                          onPress={() => handleDelete(inv.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Trash2 size={14} color={Colors.danger} />
-                          <Text style={[styles.contextMenuText, { color: Colors.danger }]}>
-                            Delete
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
+              {displayedInvoices.map((inv, index) => (
+                <InvoiceCard
+                  key={inv.id}
+                  invoice={inv}
+                  isMenuOpen={activeMenuId === inv.id}
+                  onPress={handleInvoicePress}
+                  onMenuToggle={handleMenuToggle}
+                  onEdit={handleEdit}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  isLast={index === displayedInvoices.length - 1}
+                />
+              ))}
             </View>
           )}
 
@@ -572,182 +414,7 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.primary,
   },
-  emptyState: {
-    backgroundColor: Colors.card,
-    borderRadius: 20,
-    padding: 36,
-    alignItems: 'center' as const,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  emptyIconOuter: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    marginBottom: 20,
-  },
-  emptyIconInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: Colors.card,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center' as const,
-    lineHeight: 20,
-    marginBottom: 20,
-    maxWidth: 240,
-  },
-  emptyButton: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-    backgroundColor: Colors.primaryBg,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  emptyButtonText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.primary,
-  },
   invoiceList: {
     gap: 8,
-  },
-  invoiceCard: {
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  invoiceCardBody: {
-    flex: 1,
-  },
-  invoiceCardTop: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 8,
-  },
-  invoiceCardMeta: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-    flex: 1,
-  },
-  invoiceNumber: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  statusPill: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusLabel: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-  },
-  invoiceCardActions: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 8,
-  },
-  invoiceAmount: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  menuBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: Colors.surfaceAlt,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  invoiceCardBottom: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-  },
-  clientName: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    flex: 1,
-    marginRight: 8,
-  },
-  invoiceDate: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-  },
-  contextMenu: {
-    backgroundColor: Colors.card,
-    borderRadius: 12,
-    marginTop: 4,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: 'hidden' as const,
-    ...Platform.select({
-      ios: {
-        shadowColor: Colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: { elevation: 4 },
-      web: {
-        shadowColor: Colors.shadow,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-    }),
-  },
-  contextMenuItem: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  contextMenuText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: Colors.text,
-  },
-  contextMenuDivider: {
-    height: 1,
-    backgroundColor: Colors.borderLight,
-    marginHorizontal: 12,
   },
 });

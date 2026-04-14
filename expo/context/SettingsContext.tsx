@@ -5,7 +5,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { BusinessSettings } from '@/types/invoice';
 
 const STORAGE_KEY = 'easyinvoice_settings';
-const defaultSettings: BusinessSettings = { businessName: '', businessEmail: '', businessPhone: '', businessAddress: '', defaultCurrency: 'USD', logoUri: '' };
+
+const defaultSettings: BusinessSettings = {
+  businessName: '',
+  businessEmail: '',
+  businessPhone: '',
+  businessAddress: '',
+  defaultCurrency: 'USD',
+  logoUri: '',
+};
 
 export const [SettingsProvider, useSettings] = createContextHook(() => {
   const queryClient = useQueryClient();
@@ -32,7 +40,11 @@ export const [SettingsProvider, useSettings] = createContextHook(() => {
   });
 
   const updateSettings = useCallback((partial: Partial<BusinessSettings>) => {
-    setSettings((prev) => { const updated = { ...prev, ...partial }; syncMutation.mutate(updated); return updated; });
+    setSettings((prev) => {
+      const updated = { ...prev, ...partial };
+      syncMutation.mutate(updated);
+      return updated;
+    });
   }, [syncMutation]);
 
   return { settings, updateSettings, isLoading: settingsQuery.isLoading };
