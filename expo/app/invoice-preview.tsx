@@ -21,11 +21,13 @@ import {
   Pencil,
   Copy,
 } from 'lucide-react-native';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import Colors from '@/constants/colors';
 import { useInvoices } from '@/context/InvoiceContext';
+import { useSettings } from '@/context/SettingsContext';
 import {
   formatCurrency,
   formatDate,
@@ -38,7 +40,9 @@ export default function InvoicePreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { getInvoice, updateInvoice, deleteInvoice, duplicateInvoice } = useInvoices();
+  const { settings } = useSettings();
   const invoice = getInvoice(id ?? '');
+  const logoUri = settings.logoUri;
   const subtotal = useMemo(
     () => (invoice ? calculateInvoiceSubtotal(invoice.lineItems) : 0),
     [invoice]
@@ -78,7 +82,7 @@ export default function InvoicePreviewScreen() {
     if (!invoice) return null;
     try {
       console.log('[InvoicePreview] Generating PDF for:', invoice.invoiceNumber);
-      const html = generateInvoiceHtml(invoice);
+      const html = generateInvoiceHtml(invoice, logoUri);
       const { uri } = await Print.printToFileAsync({
         html,
         base64: false,
@@ -97,7 +101,7 @@ export default function InvoicePreviewScreen() {
     setIsGeneratingPdf(true);
     try {
       if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(invoice);
+        const html = generateInvoiceHtml(invoice, logoUri);
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(html);
@@ -136,7 +140,7 @@ export default function InvoicePreviewScreen() {
     setIsGeneratingPdf(true);
     try {
       if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(invoice);
+        const html = generateInvoiceHtml(invoice, logoUri);
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(html);
@@ -145,7 +149,7 @@ export default function InvoicePreviewScreen() {
         }
         return;
       }
-      const html = generateInvoiceHtml(invoice);
+      const html = generateInvoiceHtml(invoice, logoUri);
       await Print.printAsync({ html });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       console.log('[InvoicePreview] Print dialog opened');
@@ -274,6 +278,14 @@ export default function InvoicePreviewScreen() {
           <View style={styles.docContent}>
             <View style={styles.docHeader}>
               <View style={styles.docHeaderLeft}>
+                {logoUri ? (
+                  <Image
+                    source={{ uri: logoUri }}
+                    style={styles.docLogo}
+                    contentFit="contain"
+                    testID="invoice-logo"
+                  />
+                ) : null}
                 <Text style={styles.docInvoiceWord}>INVOICE</Text>
                 <Text style={styles.docInvoiceNum}>
                   {invoice.invoiceNumber}
@@ -628,6 +640,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'flex-start' as const,
+  },
+  docLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    marginBottom: 10,
+    backgroundColor: Colors.surfaceAlt,
   },
   docHeaderLeft: {},
   docHeaderRight: {

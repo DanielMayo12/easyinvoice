@@ -22,7 +22,7 @@ function buildLineItemRows(items: LineItem[], currency: string): string {
     .join('');
 }
 
-export function generateInvoiceHtml(invoice: Invoice): string {
+export function generateInvoiceHtml(invoice: Invoice, logoUri?: string): string {
   const subtotal = calculateInvoiceSubtotal(invoice.lineItems);
 
   return `<!DOCTYPE html>
@@ -51,6 +51,13 @@ export function generateInvoiceHtml(invoice: Invoice): string {
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 28px;
+  }
+  .logo {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border-radius: 8px;
+    margin-bottom: 10px;
   }
   .invoice-title {
     font-size: 32px;
@@ -189,6 +196,7 @@ export function generateInvoiceHtml(invoice: Invoice): string {
 
   <div class="header">
     <div>
+      ${logoUri ? `<img src="${logoUri}" class="logo" />` : ''}
       <div class="invoice-title">INVOICE</div>
       <div class="invoice-num">${escapeHtml(invoice.invoiceNumber)}</div>
     </div>

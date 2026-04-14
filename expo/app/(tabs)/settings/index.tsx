@@ -7,7 +7,10 @@ import {
   TextInput,
   TouchableOpacity,
   Platform,
+  Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Building2,
@@ -19,6 +22,9 @@ import {
   Check,
   ChevronRight,
   Palette,
+  Camera,
+  ImageIcon,
+  Trash2,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -46,6 +52,59 @@ export default function SettingsScreen() {
     [updateSettings]
   );
 
+  const handlePickLogo = useCallback(async () => {
+    try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library to select a logo.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          const mimeType = asset.mimeType || 'image/jpeg';
+          const dataUri = `data:${mimeType};base64,${asset.base64}`;
+          updateSettings({ logoUri: dataUri });
+          console.log('[Settings] Logo saved as base64 data URI');
+        } else if (asset.uri) {
+          updateSettings({ logoUri: asset.uri });
+          console.log('[Settings] Logo saved with URI:', asset.uri);
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.log('[Settings] Logo pick error:', error);
+      Alert.alert('Error', 'Could not load the image. Please try again.');
+    }
+  }, [updateSettings]);
+
+  const handleRemoveLogo = useCallback(() => {
+    Alert.alert('Remove Logo', 'Are you sure you want to remove your business logo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          updateSettings({ logoUri: '' });
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          console.log('[Settings] Logo removed');
+        },
+      },
+    ]);
+  }, [updateSettings]);
+
   const selectedCurrency = CURRENCIES.find(
     (c) => c.code === settings.defaultCurrency
   );
@@ -63,6 +122,57 @@ export default function SettingsScreen() {
           <Text style={styles.subtitle}>
             Configure your business defaults
           </Text>
+        </View>
+
+        <Text style={styles.sectionLabel}>Business Logo</Text>
+        <View style={styles.card}>
+          <View style={styles.logoSection}>
+            {settings.logoUri ? (
+              <View style={styles.logoPreviewContainer}>
+                <Image
+                  source={{ uri: settings.logoUri }}
+                  style={styles.logoPreview}
+                  contentFit="contain"
+                  testID="logo-preview"
+                />
+                <View style={styles.logoActions}>
+                  <TouchableOpacity
+                    style={styles.logoActionBtn}
+                    onPress={handlePickLogo}
+                    activeOpacity={0.7}
+                  >
+                    <Camera size={15} color={Colors.primary} />
+                    <Text style={styles.logoActionText}>Change</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.logoActionBtn, styles.logoRemoveBtn]}
+                    onPress={handleRemoveLogo}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={15} color={Colors.danger} />
+                    <Text style={[styles.logoActionText, { color: Colors.danger }]}>
+                      Remove
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.logoUploadArea}
+                onPress={handlePickLogo}
+                activeOpacity={0.7}
+                testID="upload-logo-button"
+              >
+                <View style={styles.logoUploadIconWrap}>
+                  <ImageIcon size={24} color={Colors.textTertiary} />
+                </View>
+                <Text style={styles.logoUploadTitle}>Add Your Logo</Text>
+                <Text style={styles.logoUploadHint}>
+                  Tap to select from your photo library
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <Text style={styles.sectionLabel}>Business Details</Text>
@@ -298,6 +408,68 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     marginBottom: 24,
     overflow: 'hidden' as const,
+  },
+  logoSection: {
+    padding: 16,
+  },
+  logoPreviewContainer: {
+    alignItems: 'center' as const,
+    gap: 16,
+  },
+  logoPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  logoActions: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  logoActionBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.primaryBg,
+  },
+  logoRemoveBtn: {
+    backgroundColor: Colors.dangerBg,
+  },
+  logoActionText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  logoUploadArea: {
+    alignItems: 'center' as const,
+    paddingVertical: 28,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed' as const,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+  },
+  logoUploadIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 12,
+  },
+  logoUploadTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  logoUploadHint: {
+    fontSize: 13,
+    color: Colors.textTertiary,
   },
   inputRow: {
     flexDirection: 'row' as const,

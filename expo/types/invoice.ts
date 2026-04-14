@@ -29,6 +29,7 @@ export interface BusinessSettings {
   businessPhone: string;
   businessAddress: string;
   defaultCurrency: string;
+  logoUri: string;
 }
 
 export const CURRENCIES = [

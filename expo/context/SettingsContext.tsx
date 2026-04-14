@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { BusinessSettings } from '@/types/invoice';
 
 const STORAGE_KEY = 'easyinvoice_settings';
-const defaultSettings: BusinessSettings = { businessName: '', businessEmail: '', businessPhone: '', businessAddress: '', defaultCurrency: 'USD' };
+const defaultSettings: BusinessSettings = { businessName: '', businessEmail: '', businessPhone: '', businessAddress: '', defaultCurrency: 'USD', logoUri: '' };
 
 export const [SettingsProvider, useSettings] = createContextHook(() => {
   const queryClient = useQueryClient();
