@@ -5,6 +5,11 @@
       "name": "EasyInvoice",
       "path": "expo",
       "framework": "react-native"
+    },
+    {
+      "name": "EasyInvoice",
+      "path": "expo",
+      "framework": "react-native"
     }
   ]
 }
