@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Platform,
   Animated,
 } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import {
   Plus,
   Trash2,
@@ -148,28 +148,52 @@ const FormField = React.memo(function FormField({
 
 export default function CreateInvoiceScreen() {
   const router = useRouter();
-  const { addInvoice } = useInvoices();
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const { addInvoice, updateInvoice, getInvoice } = useInvoices();
   const { settings } = useSettings();
 
-  const [businessName, setBusinessName] = useState(settings.businessName);
-  const [businessEmail, setBusinessEmail] = useState(settings.businessEmail);
-  const [businessPhone, setBusinessPhone] = useState(settings.businessPhone);
-  const [businessAddress, setBusinessAddress] = useState(settings.businessAddress);
-  const [clientName, setClientName] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-  const [invoiceNumber] = useState(generateInvoiceNumber());
-  const [issueDate, setIssueDate] = useState(getTodayStr());
-  const [dueDate, setDueDate] = useState(getDefaultDueDate());
-  const [currency, setCurrency] = useState(settings.defaultCurrency);
-  const [notes, setNotes] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: generateId(), description: '', quantity: 1, rate: 0 },
-  ]);
+  const existingInvoice = editId ? getInvoice(editId) : undefined;
+  const isEditing = !!existingInvoice;
+
+  const [businessName, setBusinessName] = useState(
+    existingInvoice?.businessName ?? settings.businessName
+  );
+  const [businessEmail, setBusinessEmail] = useState(
+    existingInvoice?.businessEmail ?? settings.businessEmail
+  );
+  const [businessPhone, setBusinessPhone] = useState(
+    existingInvoice?.businessPhone ?? settings.businessPhone
+  );
+  const [businessAddress, setBusinessAddress] = useState(
+    existingInvoice?.businessAddress ?? settings.businessAddress
+  );
+  const [clientName, setClientName] = useState(existingInvoice?.clientName ?? '');
+  const [clientEmail, setClientEmail] = useState(existingInvoice?.clientEmail ?? '');
+  const [invoiceNumber] = useState(
+    existingInvoice?.invoiceNumber ?? generateInvoiceNumber()
+  );
+  const [issueDate, setIssueDate] = useState(
+    existingInvoice?.issueDate ?? getTodayStr()
+  );
+  const [dueDate, setDueDate] = useState(
+    existingInvoice?.dueDate ?? getDefaultDueDate()
+  );
+  const [currency, setCurrency] = useState(
+    existingInvoice?.currency ?? settings.defaultCurrency
+  );
+  const [notes, setNotes] = useState(existingInvoice?.notes ?? '');
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    existingInvoice?.lineItems?.length
+      ? existingInvoice.lineItems
+      : [{ id: generateId(), description: '', quantity: 1, rate: 0 }]
+  );
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [businessCollapsed, setBusinessCollapsed] = useState(
-    !!(settings.businessName && settings.businessEmail)
+    isEditing
+      ? true
+      : !!(settings.businessName && settings.businessEmail)
   );
 
   const scrollRef = useRef<ScrollView>(null);
@@ -255,29 +279,56 @@ export default function CreateInvoiceScreen() {
       return;
     }
 
-    const newInvoice: Invoice = {
-      id: generateId(),
-      invoiceNumber,
-      issueDate,
-      dueDate,
-      currency,
-      notes,
-      businessName,
-      businessEmail,
-      businessPhone,
-      businessAddress,
-      clientName,
-      clientEmail,
-      lineItems: lineItems.filter((item) => item.description.trim()),
-      status: 'draft',
-      createdAt: new Date().toISOString(),
-    };
-    addInvoice(newInvoice);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace({ pathname: '/invoice-preview', params: { id: newInvoice.id } });
+    const filteredLineItems = lineItems.filter((item) => item.description.trim());
+
+    if (isEditing && existingInvoice) {
+      const updatedInvoice: Invoice = {
+        ...existingInvoice,
+        invoiceNumber,
+        issueDate,
+        dueDate,
+        currency,
+        notes,
+        businessName,
+        businessEmail,
+        businessPhone,
+        businessAddress,
+        clientName,
+        clientEmail,
+        lineItems: filteredLineItems,
+      };
+      updateInvoice(updatedInvoice);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log('[CreateInvoice] Updated invoice:', updatedInvoice.id);
+      router.back();
+    } else {
+      const newInvoice: Invoice = {
+        id: generateId(),
+        invoiceNumber,
+        issueDate,
+        dueDate,
+        currency,
+        notes,
+        businessName,
+        businessEmail,
+        businessPhone,
+        businessAddress,
+        clientName,
+        clientEmail,
+        lineItems: filteredLineItems,
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+      };
+      addInvoice(newInvoice);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log('[CreateInvoice] Created new invoice:', newInvoice.id);
+      router.replace({ pathname: '/invoice-preview', params: { id: newInvoice.id } });
+    }
   }, [
     validate,
     shakeError,
+    isEditing,
+    existingInvoice,
     invoiceNumber,
     issueDate,
     dueDate,
@@ -291,6 +342,7 @@ export default function CreateInvoiceScreen() {
     clientEmail,
     lineItems,
     addInvoice,
+    updateInvoice,
     router,
   ]);
 
@@ -300,6 +352,8 @@ export default function CreateInvoiceScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
+  const screenTitle = isEditing ? 'Edit Invoice' : 'New Invoice';
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -308,7 +362,7 @@ export default function CreateInvoiceScreen() {
     >
       <Stack.Screen
         options={{
-          title: 'New Invoice',
+          title: screenTitle,
           headerTitleStyle: { fontWeight: '700' as const, fontSize: 17 },
         }}
       />
@@ -326,15 +380,18 @@ export default function CreateInvoiceScreen() {
             </View>
             <View>
               <Text style={styles.metaInvoiceNum}>{invoiceNumber}</Text>
-              <Text style={styles.metaDate}>Created {getTodayStr()}</Text>
+              <Text style={styles.metaDate}>
+                {isEditing ? 'Editing' : 'Created'} {getTodayStr()}
+              </Text>
             </View>
           </View>
           <View style={styles.metaStatusBadge}>
-            <Text style={styles.metaStatusText}>Draft</Text>
+            <Text style={styles.metaStatusText}>
+              {isEditing ? (existingInvoice?.status ?? 'Draft').charAt(0).toUpperCase() + (existingInvoice?.status ?? 'draft').slice(1) : 'Draft'}
+            </Text>
           </View>
         </View>
 
-        {/* SECTION 1: Business Details */}
         <View style={styles.section}>
           <SectionHeader
             icon={<Building2 size={15} color={Colors.primary} />}
@@ -399,7 +456,6 @@ export default function CreateInvoiceScreen() {
           )}
         </View>
 
-        {/* SECTION 2: Client Details */}
         <View style={styles.section}>
           <SectionHeader
             icon={<UserRound size={15} color={Colors.primary} />}
@@ -446,7 +502,6 @@ export default function CreateInvoiceScreen() {
           </View>
         </View>
 
-        {/* SECTION 3: Invoice Details */}
         <View style={styles.section}>
           <SectionHeader
             icon={<Calendar size={15} color={Colors.primary} />}
@@ -529,7 +584,6 @@ export default function CreateInvoiceScreen() {
           </View>
         </View>
 
-        {/* SECTION 4: Line Items */}
         <View style={styles.section}>
           <SectionHeader
             icon={<Package size={15} color={Colors.primary} />}
@@ -638,7 +692,6 @@ export default function CreateInvoiceScreen() {
           </View>
         </View>
 
-        {/* SECTION 5: Notes */}
         <View style={styles.section}>
           <SectionHeader
             icon={<StickyNote size={15} color={Colors.primary} />}
@@ -659,7 +712,6 @@ export default function CreateInvoiceScreen() {
           </View>
         </View>
 
-        {/* Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -694,7 +746,9 @@ export default function CreateInvoiceScreen() {
             testID="save-invoice-main-button"
           >
             <Check size={18} color={Colors.textInverse} strokeWidth={2.5} />
-            <Text style={styles.saveBtnText}>Save Invoice</Text>
+            <Text style={styles.saveBtnText}>
+              {isEditing ? 'Update Invoice' : 'Save Invoice'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

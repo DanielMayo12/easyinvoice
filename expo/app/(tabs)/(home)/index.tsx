@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +19,10 @@ import {
   Receipt,
   ArrowUpRight,
   Zap,
+  MoreHorizontal,
+  Pencil,
+  Copy,
+  Trash2,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -32,11 +37,15 @@ import {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { invoices, recentInvoices, totalAmount } = useInvoices();
+  const { invoices, recentInvoices, totalAmount, deleteInvoice, duplicateInvoice } = useInvoices();
   const { settings } = useSettings();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const displayedInvoices = showAll ? invoices : recentInvoices;
 
   useEffect(() => {
     Animated.parallel([
@@ -73,10 +82,63 @@ export default function HomeScreen() {
 
   const handleInvoicePress = useCallback(
     (invoiceId: string) => {
+      if (activeMenuId) {
+        setActiveMenuId(null);
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push({ pathname: '/invoice-preview', params: { id: invoiceId } });
     },
+    [router, activeMenuId]
+  );
+
+  const handleMenuToggle = useCallback((invoiceId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveMenuId((prev) => (prev === invoiceId ? null : invoiceId));
+  }, []);
+
+  const handleEdit = useCallback(
+    (invoiceId: string) => {
+      setActiveMenuId(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      router.push({ pathname: '/create-invoice', params: { id: invoiceId } });
+    },
     [router]
+  );
+
+  const handleDuplicate = useCallback(
+    (invoiceId: string) => {
+      setActiveMenuId(null);
+      const newInvoice = duplicateInvoice(invoiceId);
+      if (newInvoice) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        console.log('[Home] Duplicated invoice:', newInvoice.id);
+      }
+    },
+    [duplicateInvoice]
+  );
+
+  const handleDelete = useCallback(
+    (invoiceId: string) => {
+      setActiveMenuId(null);
+      Alert.alert(
+        'Delete Invoice',
+        'This action cannot be undone. Are you sure?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deleteInvoice(invoiceId);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              console.log('[Home] Deleted invoice:', invoiceId);
+            },
+          },
+        ]
+      );
+    },
+    [deleteInvoice]
   );
 
   const getStatusConfig = useCallback(
@@ -206,15 +268,27 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Invoices</Text>
-            {recentInvoices.length > 0 && (
+            <Text style={styles.sectionTitle}>
+              {showAll ? 'All Invoices' : 'Recent Invoices'}
+            </Text>
+            {invoices.length > 5 && (
+              <TouchableOpacity
+                onPress={() => setShowAll((v) => !v)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>
+                  {showAll ? 'Show Less' : `View All (${invoices.length})`}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {invoices.length > 0 && invoices.length <= 5 && (
               <Text style={styles.sectionCount}>
-                {recentInvoices.length} of {invoices.length}
+                {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
               </Text>
             )}
           </View>
 
-          {recentInvoices.length === 0 ? (
+          {displayedInvoices.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIconOuter}>
                 <View style={styles.emptyIconInner}>
@@ -236,67 +310,106 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.invoiceList}>
-              {recentInvoices.map((inv, index) => {
+              {displayedInvoices.map((inv, index) => {
                 const total = calculateInvoiceSubtotal(inv.lineItems);
                 const statusConfig = getStatusConfig(inv.status);
+                const isMenuOpen = activeMenuId === inv.id;
                 return (
-                  <TouchableOpacity
-                    key={inv.id}
-                    style={[
-                      styles.invoiceCard,
-                      index === recentInvoices.length - 1 && { marginBottom: 0 },
-                    ]}
-                    onPress={() => handleInvoicePress(inv.id)}
-                    activeOpacity={0.7}
-                    testID={`invoice-card-${inv.id}`}
-                  >
-                    <View style={styles.invoiceCardBody}>
-                      <View style={styles.invoiceCardTop}>
-                        <View style={styles.invoiceCardMeta}>
-                          <Text style={styles.invoiceNumber}>
-                            {inv.invoiceNumber}
-                          </Text>
-                          <View
-                            style={[
-                              styles.statusPill,
-                              { backgroundColor: statusConfig.bg },
-                            ]}
-                          >
+                  <View key={inv.id}>
+                    <TouchableOpacity
+                      style={[
+                        styles.invoiceCard,
+                        index === displayedInvoices.length - 1 && { marginBottom: 0 },
+                      ]}
+                      onPress={() => handleInvoicePress(inv.id)}
+                      activeOpacity={0.7}
+                      testID={`invoice-card-${inv.id}`}
+                    >
+                      <View style={styles.invoiceCardBody}>
+                        <View style={styles.invoiceCardTop}>
+                          <View style={styles.invoiceCardMeta}>
+                            <Text style={styles.invoiceNumber}>
+                              {inv.invoiceNumber}
+                            </Text>
                             <View
                               style={[
-                                styles.statusDot,
-                                { backgroundColor: statusConfig.color },
-                              ]}
-                            />
-                            <Text
-                              style={[
-                                styles.statusLabel,
-                                { color: statusConfig.color },
+                                styles.statusPill,
+                                { backgroundColor: statusConfig.bg },
                               ]}
                             >
-                              {statusConfig.label}
+                              <View
+                                style={[
+                                  styles.statusDot,
+                                  { backgroundColor: statusConfig.color },
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  styles.statusLabel,
+                                  { color: statusConfig.color },
+                                ]}
+                              >
+                                {statusConfig.label}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.invoiceCardActions}>
+                            <Text style={styles.invoiceAmount}>
+                              {formatCurrency(total, inv.currency)}
                             </Text>
+                            <TouchableOpacity
+                              style={styles.menuBtn}
+                              onPress={() => handleMenuToggle(inv.id)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <MoreHorizontal size={16} color={Colors.textTertiary} />
+                            </TouchableOpacity>
                           </View>
                         </View>
-                        <Text style={styles.invoiceAmount}>
-                          {formatCurrency(total, inv.currency)}
-                        </Text>
+                        <View style={styles.invoiceCardBottom}>
+                          <Text style={styles.clientName} numberOfLines={1}>
+                            {inv.clientName || 'No client'}
+                          </Text>
+                          <Text style={styles.invoiceDate}>
+                            {formatDate(inv.issueDate)}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.invoiceCardBottom}>
-                        <Text style={styles.clientName} numberOfLines={1}>
-                          {inv.clientName || 'No client'}
-                        </Text>
-                        <Text style={styles.invoiceDate}>
-                          {formatDate(inv.issueDate)}
-                        </Text>
+                    </TouchableOpacity>
+
+                    {isMenuOpen && (
+                      <View style={styles.contextMenu}>
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={() => handleEdit(inv.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Pencil size={14} color={Colors.warning} />
+                          <Text style={styles.contextMenuText}>Edit</Text>
+                        </TouchableOpacity>
+                        <View style={styles.contextMenuDivider} />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={() => handleDuplicate(inv.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Copy size={14} color={Colors.primary} />
+                          <Text style={styles.contextMenuText}>Duplicate</Text>
+                        </TouchableOpacity>
+                        <View style={styles.contextMenuDivider} />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={() => handleDelete(inv.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Trash2 size={14} color={Colors.danger} />
+                          <Text style={[styles.contextMenuText, { color: Colors.danger }]}>
+                            Delete
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                    </View>
-                    <ChevronRight
-                      size={16}
-                      color={Colors.textTertiary}
-                      style={{ marginLeft: 8 }}
-                    />
-                  </TouchableOpacity>
+                    )}
+                  </View>
                 );
               })}
             </View>
@@ -454,6 +567,11 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
     color: Colors.textTertiary,
   },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
   emptyState: {
     backgroundColor: Colors.card,
     borderRadius: 20,
@@ -534,6 +652,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 8,
+    flex: 1,
   },
   invoiceNumber: {
     fontSize: 14,
@@ -557,10 +676,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600' as const,
   },
+  invoiceCardActions: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
   invoiceAmount: {
     fontSize: 15,
     fontWeight: '700' as const,
     color: Colors.text,
+  },
+  menuBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceAlt,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   invoiceCardBottom: {
     flexDirection: 'row' as const,
@@ -576,5 +708,46 @@ const styles = StyleSheet.create({
   invoiceDate: {
     fontSize: 12,
     color: Colors.textTertiary,
+  },
+  contextMenu: {
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden' as const,
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: { elevation: 4 },
+      web: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+    }),
+  },
+  contextMenuItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  contextMenuText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  contextMenuDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: 12,
   },
 });

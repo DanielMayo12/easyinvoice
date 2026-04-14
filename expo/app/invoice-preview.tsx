@@ -17,6 +17,8 @@ import {
   CheckCircle,
   ArrowRight,
   FileText,
+  Pencil,
+  Copy,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -31,12 +33,40 @@ import {
 export default function InvoicePreviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getInvoice, updateInvoice, deleteInvoice } = useInvoices();
+  const { getInvoice, updateInvoice, deleteInvoice, duplicateInvoice } = useInvoices();
   const invoice = getInvoice(id ?? '');
   const subtotal = useMemo(
     () => (invoice ? calculateInvoiceSubtotal(invoice.lineItems) : 0),
     [invoice]
   );
+
+  const handleEdit = useCallback(() => {
+    if (!invoice) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/create-invoice', params: { id: invoice.id } });
+  }, [invoice, router]);
+
+  const handleDuplicate = useCallback(() => {
+    if (!invoice) return;
+    Alert.alert(
+      'Duplicate Invoice',
+      'Create a copy of this invoice with a new number and today\'s date?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Duplicate',
+          onPress: () => {
+            const newInvoice = duplicateInvoice(invoice.id);
+            if (newInvoice) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              console.log('[InvoicePreview] Duplicated invoice:', newInvoice.id);
+              router.replace({ pathname: '/invoice-preview', params: { id: newInvoice.id } });
+            }
+          },
+        },
+      ]
+    );
+  }, [invoice, duplicateInvoice, router]);
 
   const handleShare = useCallback(async () => {
     if (!invoice) return;
@@ -92,6 +122,7 @@ export default function InvoicePreviewScreen() {
           onPress: () => {
             deleteInvoice(invoice.id);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            console.log('[InvoicePreview] Deleted invoice:', invoice.id);
             router.back();
           },
         },
@@ -313,9 +344,25 @@ export default function InvoicePreviewScreen() {
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={handleShare}
+              onPress={handleEdit}
               activeOpacity={0.7}
-              testID="share-button"
+              testID="edit-button"
+            >
+              <View
+                style={[
+                  styles.actionIconWrap,
+                  { backgroundColor: Colors.warningBg },
+                ]}
+              >
+                <Pencil size={16} color={Colors.warning} />
+              </View>
+              <Text style={styles.actionLabel}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleDuplicate}
+              activeOpacity={0.7}
+              testID="duplicate-button"
             >
               <View
                 style={[
@@ -323,10 +370,28 @@ export default function InvoicePreviewScreen() {
                   { backgroundColor: Colors.primaryBg },
                 ]}
               >
-                <Send size={16} color={Colors.primary} />
+                <Copy size={16} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionLabel}>Duplicate</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={handleShare}
+              activeOpacity={0.7}
+              testID="share-button"
+            >
+              <View
+                style={[
+                  styles.actionIconWrap,
+                  { backgroundColor: Colors.successBg },
+                ]}
+              >
+                <Send size={16} color={Colors.success} />
               </View>
               <Text style={styles.actionLabel}>Share</Text>
             </TouchableOpacity>
+          </View>
+          <View style={[styles.actionsRow, { marginTop: 10 }]}>
             <TouchableOpacity
               style={styles.actionCard}
               onPress={handleExportPDF}
@@ -336,10 +401,10 @@ export default function InvoicePreviewScreen() {
               <View
                 style={[
                   styles.actionIconWrap,
-                  { backgroundColor: Colors.successBg },
+                  { backgroundColor: Colors.surfaceAlt },
                 ]}
               >
-                <Download size={16} color={Colors.success} />
+                <Download size={16} color={Colors.textSecondary} />
               </View>
               <Text style={styles.actionLabel}>Export</Text>
             </TouchableOpacity>
@@ -361,6 +426,7 @@ export default function InvoicePreviewScreen() {
                 Delete
               </Text>
             </TouchableOpacity>
+            <View style={styles.actionCardPlaceholder} />
           </View>
         </View>
 
@@ -671,6 +737,9 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  actionCardPlaceholder: {
+    flex: 1,
   },
   actionIconWrap: {
     width: 36,
