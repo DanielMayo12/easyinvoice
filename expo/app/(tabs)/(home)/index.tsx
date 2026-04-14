@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
-  Alert,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -29,9 +28,9 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useInvoices } from '@/context/InvoiceContext';
 import { useSettings } from '@/context/SettingsContext';
-import { formatCurrency, formatDate, calculateInvoiceSubtotal } from '@/utils/invoice';
-import { Invoice } from '@/types/invoice';
-import StatusBadge from '@/components/StatusBadge';
+import { useInvoiceStats } from '@/hooks/useInvoiceStats';
+import { formatCurrency } from '@/utils/invoice';
+import InvoiceRow from '@/components/InvoiceRow';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -42,97 +41,13 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
-function getTimeSince(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return formatDate(dateStr);
-}
-
-interface QuickInvoiceRowProps {
-  invoice: Invoice;
-  onPress: (id: string) => void;
-  index: number;
-}
-
-const QuickInvoiceRow = React.memo(function QuickInvoiceRow({ invoice, onPress, index }: QuickInvoiceRowProps) {
-  const total = calculateInvoiceSubtotal(invoice.lineItems);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(16)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        delay: 100 + index * 60,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 350,
-        delay: 100 + index * 60,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-      <TouchableOpacity
-        style={styles.invoiceRow}
-        onPress={() => onPress(invoice.id)}
-        activeOpacity={0.6}
-        testID={`invoice-row-${invoice.id}`}
-      >
-        <View style={styles.invoiceRowLeft}>
-          <View style={[
-            styles.invoiceRowAvatar,
-            invoice.status === 'paid' && { backgroundColor: '#ECFDF5' },
-            invoice.status === 'sent' && { backgroundColor: '#EBF3FF' },
-            invoice.status === 'draft' && { backgroundColor: '#F8FAFC' },
-          ]}>
-            <Text style={[
-              styles.invoiceRowAvatarText,
-              invoice.status === 'paid' && { color: Colors.success },
-              invoice.status === 'sent' && { color: Colors.primary },
-              invoice.status === 'draft' && { color: Colors.textTertiary },
-            ]}>
-              {(invoice.clientName || 'U')[0].toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.invoiceRowMeta}>
-            <Text style={styles.invoiceRowClient} numberOfLines={1}>
-              {invoice.clientName || 'Unnamed Client'}
-            </Text>
-            <View style={styles.invoiceRowSubMeta}>
-              <Text style={styles.invoiceRowNumber}>{invoice.invoiceNumber}</Text>
-              <View style={styles.invoiceRowDot} />
-              <Text style={styles.invoiceRowTime}>{getTimeSince(invoice.createdAt)}</Text>
-            </View>
-          </View>
-        </View>
-        <View style={styles.invoiceRowRight}>
-          <Text style={styles.invoiceRowAmount}>
-            {formatCurrency(total, invoice.currency)}
-          </Text>
-          <StatusBadge status={invoice.status} size="small" />
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-});
-
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { invoices, recentInvoices, totalAmount, deleteInvoice, duplicateInvoice } = useInvoices();
+  const { invoices, recentInvoices } = useInvoices();
   const { settings } = useSettings();
+  const { totalCount, paidCount, pendingCount, totalAmount, paidAmount } = useInvoiceStats();
+
   const heroFade = useRef(new Animated.Value(0)).current;
   const heroSlide = useRef(new Animated.Value(30)).current;
   const ctaScale = useRef(new Animated.Value(1)).current;
@@ -141,15 +56,7 @@ export default function HomeScreen() {
 
   const displayedInvoices = showAll ? invoices : recentInvoices;
   const greeting = useMemo(() => getGreeting(), []);
-
-  const paidCount = useMemo(() => invoices.filter((i) => i.status === 'paid').length, [invoices]);
-  const pendingCount = useMemo(() => invoices.filter((i) => i.status === 'sent').length, [invoices]);
-  const paidAmount = useMemo(
-    () => invoices
-      .filter((i) => i.status === 'paid')
-      .reduce((sum, inv) => sum + calculateInvoiceSubtotal(inv.lineItems), 0),
-    [invoices]
-  );
+  const hasInvoices = totalCount > 0;
 
   useEffect(() => {
     Animated.stagger(120, [
@@ -178,8 +85,6 @@ export default function HomeScreen() {
     },
     [router]
   );
-
-  const hasInvoices = invoices.length > 0;
 
   return (
     <View style={styles.container}>
@@ -224,7 +129,7 @@ export default function HomeScreen() {
             <Text style={styles.heroGreeting}>{greeting}</Text>
             <Text style={styles.heroTagline}>
               {hasInvoices
-                ? `You have ${invoices.length} invoice${invoices.length !== 1 ? 's' : ''} totaling ${formatCurrency(totalAmount, settings.defaultCurrency)}`
+                ? `You have ${totalCount} invoice${totalCount !== 1 ? 's' : ''} totaling ${formatCurrency(totalAmount, settings.defaultCurrency)}`
                 : 'Create professional invoices in seconds'}
             </Text>
 
@@ -276,7 +181,7 @@ export default function HomeScreen() {
             <View style={[styles.miniStatIcon, { backgroundColor: '#EBF3FF' }]}>
               <FileText size={13} color={Colors.primary} strokeWidth={2} />
             </View>
-            <Text style={styles.miniStatValue}>{invoices.length}</Text>
+            <Text style={styles.miniStatValue}>{totalCount}</Text>
             <Text style={styles.miniStatLabel}>Total</Text>
           </View>
           <View style={styles.miniStatDivider} />
@@ -327,7 +232,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>
                 {showAll ? 'All Invoices' : 'Recent'}
               </Text>
-              {invoices.length > 5 && (
+              {totalCount > 5 && (
                 <TouchableOpacity
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -337,7 +242,7 @@ export default function HomeScreen() {
                   style={styles.viewAllBtn}
                 >
                   <Text style={styles.viewAllText}>
-                    {showAll ? 'Show Less' : `All (${invoices.length})`}
+                    {showAll ? 'Show Less' : `All (${totalCount})`}
                   </Text>
                   <ChevronRight size={14} color={Colors.primary} strokeWidth={2} />
                 </TouchableOpacity>
@@ -346,7 +251,7 @@ export default function HomeScreen() {
 
             <View style={styles.invoiceList}>
               {displayedInvoices.map((inv, index) => (
-                <QuickInvoiceRow
+                <InvoiceRow
                   key={inv.id}
                   invoice={inv}
                   onPress={handleInvoicePress}
@@ -372,7 +277,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 0,
   },
-
   heroCard: {
     paddingHorizontal: 24,
     paddingBottom: 28,
@@ -452,7 +356,6 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: '#FFFFFF',
   },
-
   statsRow: {
     flexDirection: 'row' as const,
     gap: 12,
@@ -507,7 +410,6 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
     color: Colors.textTertiary,
   },
-
   statsRowSmall: {
     flexDirection: 'row' as const,
     backgroundColor: '#FFFFFF',
@@ -560,7 +462,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     marginVertical: 4,
   },
-
   sectionHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
@@ -585,7 +486,6 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.primary,
   },
-
   invoiceList: {
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
@@ -607,73 +507,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  invoiceRow: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F7FA',
-  },
-  invoiceRowLeft: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 12,
-    flex: 1,
-    marginRight: 12,
-  },
-  invoiceRowAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
-  invoiceRowAvatarText: {
-    fontSize: 17,
-    fontWeight: '700' as const,
-  },
-  invoiceRowMeta: {
-    flex: 1,
-  },
-  invoiceRowClient: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.text,
-    marginBottom: 3,
-  },
-  invoiceRowSubMeta: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-  },
-  invoiceRowNumber: {
-    fontSize: 12,
-    fontWeight: '500' as const,
-    color: Colors.textTertiary,
-  },
-  invoiceRowDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: Colors.textTertiary,
-    opacity: 0.5,
-  },
-  invoiceRowTime: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-  },
-  invoiceRowRight: {
-    alignItems: 'flex-end' as const,
-    gap: 5,
-  },
-  invoiceRowAmount: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: -0.3,
-  },
-
   emptyContainer: {
     marginHorizontal: 20,
     marginTop: 32,

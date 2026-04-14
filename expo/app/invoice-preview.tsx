@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,19 +21,17 @@ import {
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import Colors from '@/constants/colors';
 import { useInvoices } from '@/context/InvoiceContext';
 import { useSettings } from '@/context/SettingsContext';
+import { usePdfExport } from '@/hooks/usePdfExport';
 import {
   formatCurrency,
   formatDate,
   calculateLineItemTotal,
   calculateInvoiceSubtotal,
 } from '@/utils/invoice';
-import { generateInvoiceHtml } from '@/utils/invoiceHtml';
-import StatusBadge, { getStatusConfig } from '@/components/StatusBadge';
+import StatusBadge from '@/components/StatusBadge';
 import ActionCard from '@/components/ActionCard';
 
 export default function InvoicePreviewScreen() {
@@ -41,14 +39,15 @@ export default function InvoicePreviewScreen() {
   const router = useRouter();
   const { getInvoice, updateInvoice, deleteInvoice, duplicateInvoice } = useInvoices();
   const { settings } = useSettings();
+  const { isGenerating, sharePdf, printPdf } = usePdfExport();
+
   const invoice = getInvoice(id ?? '');
   const logoUri = settings.logoUri;
+
   const subtotal = useMemo(
     () => (invoice ? calculateInvoiceSubtotal(invoice.lineItems) : 0),
     [invoice]
   );
-
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
 
   const handleEdit = useCallback(() => {
     if (!invoice) return;
@@ -78,85 +77,15 @@ export default function InvoicePreviewScreen() {
     );
   }, [invoice, duplicateInvoice, router]);
 
-  const generatePdf = useCallback(async (): Promise<string | null> => {
-    if (!invoice) return null;
-    try {
-      console.log('[InvoicePreview] Generating PDF for:', invoice.invoiceNumber);
-      const html = generateInvoiceHtml(invoice, logoUri);
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      console.log('[InvoicePreview] PDF generated at:', uri);
-      return uri;
-    } catch (error) {
-      console.log('[InvoicePreview] PDF generation error:', error);
-      return null;
-    }
-  }, [invoice, logoUri]);
-
-  const handleShare = useCallback(async () => {
+  const handleShare = useCallback(() => {
     if (!invoice) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsGeneratingPdf(true);
-    try {
-      if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(invoice, logoUri);
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.print();
-        }
-        return;
-      }
-      const uri = await generatePdf();
-      if (!uri) {
-        Alert.alert('Error', 'Could not generate PDF. Please try again.');
-        return;
-      }
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Invoice ${invoice.invoiceNumber}`,
-          UTI: 'com.adobe.pdf',
-        });
-        console.log('[InvoicePreview] Shared PDF successfully');
-      } else {
-        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
-      }
-    } catch (e) {
-      console.log('[InvoicePreview] Share error:', e);
-      Alert.alert('Share Failed', 'Something went wrong while sharing. Please try again.');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  }, [invoice, generatePdf, logoUri]);
+    sharePdf(invoice, logoUri || undefined);
+  }, [invoice, sharePdf, logoUri]);
 
-  const handleExportPDF = useCallback(async () => {
+  const handleExportPDF = useCallback(() => {
     if (!invoice) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsGeneratingPdf(true);
-    try {
-      if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(invoice, logoUri);
-        const printWindow = window.open('', '_blank');
-        if (printWindow) {
-          printWindow.document.write(html);
-          printWindow.document.close();
-          printWindow.print();
-        }
-        return;
-      }
-      const html = generateInvoiceHtml(invoice, logoUri);
-      await Print.printAsync({ html });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      console.log('[InvoicePreview] Print dialog opened');
-    } catch (e) {
-      console.log('[InvoicePreview] Export PDF error:', e);
-      Alert.alert('Export Failed', 'Could not generate the PDF. Please try again.');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  }, [invoice, logoUri]);
+    printPdf(invoice, logoUri || undefined);
+  }, [invoice, printPdf, logoUri]);
 
   const handleMarkPaid = useCallback(() => {
     if (!invoice) return;
@@ -361,8 +290,8 @@ export default function InvoicePreviewScreen() {
               label="Share PDF"
               iconBg={Colors.successBg}
               onPress={handleShare}
-              disabled={isGeneratingPdf}
-              loading={isGeneratingPdf}
+              disabled={isGenerating}
+              loading={isGenerating}
               loadingColor={Colors.success}
               testID="share-button"
             />
@@ -373,8 +302,8 @@ export default function InvoicePreviewScreen() {
               label="Print PDF"
               iconBg={Colors.surfaceAlt}
               onPress={handleExportPDF}
-              disabled={isGeneratingPdf}
-              loading={isGeneratingPdf}
+              disabled={isGenerating}
+              loading={isGenerating}
               loadingColor={Colors.textSecondary}
               testID="export-pdf-button"
             />
