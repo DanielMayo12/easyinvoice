@@ -1,2 +1,0 @@
-# easyinvoice
-Created by Rork
