@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Animated,
@@ -16,12 +15,17 @@ import {
   Plus,
   Trash2,
   ChevronDown,
+  ChevronUp,
   Building2,
-  User,
+  UserRound,
   FileText,
   Package,
   Check,
   AlertCircle,
+  StickyNote,
+  Hash,
+  Calendar,
+  Coins,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -55,6 +59,93 @@ interface ValidationErrors {
   lineItems?: string;
 }
 
+interface SectionHeaderProps {
+  icon: React.ReactNode;
+  title: string;
+  stepNumber: number;
+  subtitle?: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
+  collapsible?: boolean;
+}
+
+const SectionHeader = React.memo(function SectionHeader({
+  icon,
+  title,
+  stepNumber,
+  subtitle,
+  collapsed,
+  onToggle,
+  collapsible = false,
+}: SectionHeaderProps) {
+  return (
+    <TouchableOpacity
+      style={styles.sectionHeader}
+      onPress={collapsible ? onToggle : undefined}
+      activeOpacity={collapsible ? 0.7 : 1}
+      disabled={!collapsible}
+    >
+      <View style={styles.sectionHeaderLeft}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>{stepNumber}</Text>
+        </View>
+        <View style={styles.sectionHeaderText}>
+          <View style={styles.sectionTitleRow}>
+            {icon}
+            <Text style={styles.sectionTitle}>{title}</Text>
+          </View>
+          {subtitle ? (
+            <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+          ) : null}
+        </View>
+      </View>
+      {collapsible ? (
+        <View style={styles.collapseIcon}>
+          {collapsed ? (
+            <ChevronDown size={18} color={Colors.textTertiary} />
+          ) : (
+            <ChevronUp size={18} color={Colors.textTertiary} />
+          )}
+        </View>
+      ) : null}
+    </TouchableOpacity>
+  );
+});
+
+interface FormFieldProps {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+  error?: string;
+  shakeAnim?: Animated.Value;
+}
+
+const FormField = React.memo(function FormField({
+  label,
+  required,
+  children,
+  error,
+  shakeAnim,
+}: FormFieldProps) {
+  return (
+    <View style={styles.fieldWrapper}>
+      <Text style={styles.label}>
+        {label}
+        {required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
+      {children}
+      {error && shakeAnim ? (
+        <Animated.View
+          style={[styles.errorRow, { transform: [{ translateX: shakeAnim }] }]}
+        >
+          <AlertCircle size={12} color={Colors.danger} />
+          <Text style={styles.errorText}>{error}</Text>
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+});
+
 export default function CreateInvoiceScreen() {
   const router = useRouter();
   const { addInvoice } = useInvoices();
@@ -77,12 +168,20 @@ export default function CreateInvoiceScreen() {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [businessCollapsed, setBusinessCollapsed] = useState(
+    !!(settings.businessName && settings.businessEmail)
+  );
 
   const scrollRef = useRef<ScrollView>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const subtotal = useMemo(
     () => calculateInvoiceSubtotal(lineItems),
+    [lineItems]
+  );
+
+  const itemCount = useMemo(
+    () => lineItems.filter((i) => i.description.trim()).length,
     [lineItems]
   );
 
@@ -112,6 +211,9 @@ export default function CreateInvoiceScreen() {
       ...prev,
       { id: generateId(), description: '', quantity: 1, rate: 0 },
     ]);
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 150);
   }, []);
 
   const removeLineItem = useCallback((itemId: string) => {
@@ -198,23 +300,11 @@ export default function CreateInvoiceScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
-  const renderFieldError = (message?: string) => {
-    if (!message) return null;
-    return (
-      <Animated.View
-        style={[styles.errorRow, { transform: [{ translateX: shakeAnim }] }]}
-      >
-        <AlertCircle size={12} color={Colors.danger} />
-        <Text style={styles.errorText}>{message}</Text>
-      </Animated.View>
-    );
-  };
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
       <Stack.Screen
         options={{
@@ -230,89 +320,99 @@ export default function CreateInvoiceScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.invoiceMetaBanner}>
-          <View style={styles.metaBadge}>
-            <FileText size={14} color={Colors.primary} />
-            <Text style={styles.metaBadgeText}>{invoiceNumber}</Text>
+          <View style={styles.metaLeft}>
+            <View style={styles.metaIconWrap}>
+              <FileText size={16} color={Colors.primary} />
+            </View>
+            <View>
+              <Text style={styles.metaInvoiceNum}>{invoiceNumber}</Text>
+              <Text style={styles.metaDate}>Created {getTodayStr()}</Text>
+            </View>
           </View>
-          <Text style={styles.metaDate}>Created {getTodayStr()}</Text>
+          <View style={styles.metaStatusBadge}>
+            <Text style={styles.metaStatusText}>Draft</Text>
+          </View>
         </View>
 
-        <View style={styles.stepIndicator}>
-          <View style={styles.stepDot}>
-            <Text style={styles.stepNum}>1</Text>
-          </View>
-          <Text style={styles.stepLabel}>Your Details</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Building2 size={16} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Business Details</Text>
-          </View>
-          <View style={styles.fieldGroup}>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Business Name</Text>
-              <TextInput
-                style={styles.input}
-                value={businessName}
-                onChangeText={setBusinessName}
-                placeholder="Your Business Name"
-                placeholderTextColor={Colors.textTertiary}
-              />
-            </View>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                value={businessEmail}
-                onChangeText={setBusinessEmail}
-                placeholder="email@business.com"
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-            <View style={styles.fieldRow}>
-              <View style={[styles.fieldWrapper, { flex: 1 }]}>
-                <Text style={styles.label}>Phone</Text>
+        {/* SECTION 1: Business Details */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Building2 size={15} color={Colors.primary} />}
+            title="My Business"
+            stepNumber={1}
+            subtitle={businessCollapsed && businessName ? businessName : undefined}
+            collapsed={businessCollapsed}
+            onToggle={() => setBusinessCollapsed((v) => !v)}
+            collapsible
+          />
+          {!businessCollapsed && (
+            <View style={styles.sectionBody}>
+              <FormField label="Business Name">
                 <TextInput
                   style={styles.input}
-                  value={businessPhone}
-                  onChangeText={setBusinessPhone}
-                  placeholder="+1 (555) 000"
+                  value={businessName}
+                  onChangeText={setBusinessName}
+                  placeholder="Your Business Name"
                   placeholderTextColor={Colors.textTertiary}
-                  keyboardType="phone-pad"
+                  returnKeyType="next"
                 />
+              </FormField>
+              <FormField label="Email">
+                <TextInput
+                  style={styles.input}
+                  value={businessEmail}
+                  onChangeText={setBusinessEmail}
+                  placeholder="email@business.com"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  returnKeyType="next"
+                />
+              </FormField>
+              <View style={styles.fieldRow}>
+                <View style={styles.fieldRowHalf}>
+                  <FormField label="Phone">
+                    <TextInput
+                      style={styles.input}
+                      value={businessPhone}
+                      onChangeText={setBusinessPhone}
+                      placeholder="+1 (555) 000"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="phone-pad"
+                      returnKeyType="next"
+                    />
+                  </FormField>
+                </View>
+                <View style={styles.fieldRowHalf} />
               </View>
+              <FormField label="Address">
+                <TextInput
+                  style={styles.input}
+                  value={businessAddress}
+                  onChangeText={setBusinessAddress}
+                  placeholder="123 Main St, City, State"
+                  placeholderTextColor={Colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </FormField>
             </View>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Address</Text>
-              <TextInput
-                style={styles.input}
-                value={businessAddress}
-                onChangeText={setBusinessAddress}
-                placeholder="123 Main St, City, State"
-                placeholderTextColor={Colors.textTertiary}
-              />
-            </View>
-          </View>
+          )}
         </View>
 
-        <View style={styles.stepIndicator}>
-          <View style={styles.stepDot}>
-            <Text style={styles.stepNum}>2</Text>
-          </View>
-          <Text style={styles.stepLabel}>Client Info</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <User size={16} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Client Details</Text>
-          </View>
-          <View style={styles.fieldGroup}>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>
-                Client Name <Text style={styles.required}>*</Text>
-              </Text>
+        {/* SECTION 2: Client Details */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<UserRound size={15} color={Colors.primary} />}
+            title="Client Details"
+            stepNumber={2}
+          />
+          <View style={styles.sectionBody}>
+            <FormField
+              label="Client Name"
+              required
+              error={touched.clientName ? errors.clientName : undefined}
+              shakeAnim={shakeAnim}
+            >
               <TextInput
                 style={[
                   styles.input,
@@ -327,12 +427,11 @@ export default function CreateInvoiceScreen() {
                 onBlur={() => setTouched((t) => ({ ...t, clientName: true }))}
                 placeholder="Client or Company Name"
                 placeholderTextColor={Colors.textTertiary}
+                returnKeyType="next"
                 testID="client-name-input"
               />
-              {touched.clientName && renderFieldError(errors.clientName)}
-            </View>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Client Email</Text>
+            </FormField>
+            <FormField label="Client Email">
               <TextInput
                 style={styles.input}
                 value={clientEmail}
@@ -341,200 +440,243 @@ export default function CreateInvoiceScreen() {
                 placeholderTextColor={Colors.textTertiary}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                returnKeyType="next"
               />
-            </View>
+            </FormField>
           </View>
         </View>
 
-        <View style={styles.stepIndicator}>
-          <View style={styles.stepDot}>
-            <Text style={styles.stepNum}>3</Text>
-          </View>
-          <Text style={styles.stepLabel}>Invoice Details</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <FileText size={16} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Dates & Currency</Text>
-          </View>
-          <View style={styles.fieldGroup}>
+        {/* SECTION 3: Invoice Details */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Calendar size={15} color={Colors.primary} />}
+            title="Invoice Details"
+            stepNumber={3}
+          />
+          <View style={styles.sectionBody}>
             <View style={styles.fieldRow}>
-              <View style={[styles.fieldWrapper, { flex: 1 }]}>
-                <Text style={styles.label}>Issue Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={issueDate}
-                  onChangeText={setIssueDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.textTertiary}
-                />
+              <View style={styles.fieldRowHalf}>
+                <FormField label="Invoice #">
+                  <View style={styles.readonlyField}>
+                    <Hash size={13} color={Colors.textTertiary} />
+                    <Text style={styles.readonlyText}>{invoiceNumber}</Text>
+                  </View>
+                </FormField>
               </View>
-              <View style={[styles.fieldWrapper, { flex: 1 }]}>
-                <Text style={styles.label}>Due Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={dueDate}
-                  onChangeText={setDueDate}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={Colors.textTertiary}
-                />
+              <View style={styles.fieldRowHalf}>
+                <FormField label="Currency">
+                  <TouchableOpacity
+                    style={styles.currencySelector}
+                    onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.currencyLeft}>
+                      <Coins size={13} color={Colors.textSecondary} />
+                      <Text style={styles.currencyText}>
+                        {getCurrencySymbol(currency)} {currency}
+                      </Text>
+                    </View>
+                    <ChevronDown size={14} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                </FormField>
               </View>
             </View>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Currency</Text>
-              <TouchableOpacity
-                style={styles.currencySelector}
-                onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.currencyText}>
-                  {getCurrencySymbol(currency)} {currency}
-                </Text>
-                <ChevronDown size={16} color={Colors.textTertiary} />
-              </TouchableOpacity>
-              {showCurrencyPicker && (
-                <View style={styles.currencyDropdown}>
-                  {CURRENCIES.map((c) => (
-                    <TouchableOpacity
-                      key={c.code}
-                      style={[
-                        styles.currencyOption,
-                        currency === c.code && styles.currencyOptionActive,
-                      ]}
-                      onPress={() => handleCurrencySelect(c.code)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.currencySymbol}>{c.symbol}</Text>
-                      <Text style={styles.currencyName}>{c.name}</Text>
-                      {currency === c.code && (
-                        <Check size={14} color={Colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>Notes</Text>
-              <TextInput
-                style={[styles.input, styles.multilineInput]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Payment terms, thank you note..."
-                placeholderTextColor={Colors.textTertiary}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+            {showCurrencyPicker && (
+              <View style={styles.currencyDropdown}>
+                {CURRENCIES.map((c) => (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={[
+                      styles.currencyOption,
+                      currency === c.code && styles.currencyOptionActive,
+                    ]}
+                    onPress={() => handleCurrencySelect(c.code)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.currencySymbol}>{c.symbol}</Text>
+                    <Text style={styles.currencyName}>{c.name}</Text>
+                    {currency === c.code && (
+                      <Check size={14} color={Colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <View style={styles.fieldRow}>
+              <View style={styles.fieldRowHalf}>
+                <FormField label="Issue Date">
+                  <TextInput
+                    style={styles.input}
+                    value={issueDate}
+                    onChangeText={setIssueDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                </FormField>
+              </View>
+              <View style={styles.fieldRowHalf}>
+                <FormField label="Due Date">
+                  <TextInput
+                    style={styles.input}
+                    value={dueDate}
+                    onChangeText={setDueDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={Colors.textTertiary}
+                  />
+                </FormField>
+              </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.stepIndicator}>
-          <View style={styles.stepDot}>
-            <Text style={styles.stepNum}>4</Text>
-          </View>
-          <Text style={styles.stepLabel}>Line Items</Text>
-        </View>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Package size={16} color={Colors.primary} />
-            <Text style={styles.cardTitle}>Items & Services</Text>
-          </View>
-          <View style={styles.fieldGroup}>
-            {touched.lineItems && renderFieldError(errors.lineItems)}
-            {lineItems.map((item, index) => (
-              <View key={item.id} style={styles.lineItemCard}>
-                <View style={styles.lineItemTop}>
-                  <View style={styles.lineItemBadge}>
-                    <Text style={styles.lineItemBadgeText}>
-                      Item {index + 1}
-                    </Text>
-                  </View>
-                  {lineItems.length > 1 && (
-                    <TouchableOpacity
-                      onPress={() => removeLineItem(item.id)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      style={styles.removeBtn}
-                    >
-                      <Trash2 size={14} color={Colors.danger} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <TextInput
-                  style={styles.lineItemDescInput}
-                  value={item.description}
-                  onChangeText={(v) => updateLineItem(item.id, 'description', v)}
-                  placeholder="What did you provide?"
-                  placeholderTextColor={Colors.textTertiary}
-                />
-                <View style={styles.lineItemNumbers}>
-                  <View style={styles.lineItemNumField}>
-                    <Text style={styles.lineItemNumLabel}>Qty</Text>
-                    <TextInput
-                      style={styles.lineItemNumInput}
-                      value={item.quantity ? String(item.quantity) : ''}
-                      onChangeText={(v) =>
-                        updateLineItem(item.id, 'quantity', v)
-                      }
-                      placeholder="1"
-                      placeholderTextColor={Colors.textTertiary}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.lineItemNumField}>
-                    <Text style={styles.lineItemNumLabel}>Rate</Text>
-                    <TextInput
-                      style={styles.lineItemNumInput}
-                      value={item.rate ? String(item.rate) : ''}
-                      onChangeText={(v) => updateLineItem(item.id, 'rate', v)}
-                      placeholder="0.00"
-                      placeholderTextColor={Colors.textTertiary}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.lineItemTotalField}>
-                    <Text style={styles.lineItemNumLabel}>Total</Text>
-                    <View style={styles.lineItemTotalBox}>
-                      <Text style={styles.lineItemTotalValue}>
-                        {formatCurrency(calculateLineItemTotal(item), currency)}
+        {/* SECTION 4: Line Items */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Package size={15} color={Colors.primary} />}
+            title="Items"
+            stepNumber={4}
+            subtitle={itemCount > 0 ? `${itemCount} item${itemCount !== 1 ? 's' : ''}` : undefined}
+          />
+          <View style={styles.sectionBody}>
+            {touched.lineItems && errors.lineItems ? (
+              <Animated.View
+                style={[styles.errorRow, { transform: [{ translateX: shakeAnim }] }]}
+              >
+                <AlertCircle size={12} color={Colors.danger} />
+                <Text style={styles.errorText}>{errors.lineItems}</Text>
+              </Animated.View>
+            ) : null}
+
+            {lineItems.map((item, index) => {
+              const itemTotal = calculateLineItemTotal(item);
+              return (
+                <View key={item.id} style={styles.lineItemCard}>
+                  <View style={styles.lineItemHeader}>
+                    <View style={styles.lineItemBadge}>
+                      <Text style={styles.lineItemBadgeText}>#{index + 1}</Text>
+                    </View>
+                    <View style={styles.lineItemHeaderRight}>
+                      <Text style={styles.lineItemLiveTotal}>
+                        {formatCurrency(itemTotal, currency)}
                       </Text>
+                      {lineItems.length > 1 && (
+                        <TouchableOpacity
+                          onPress={() => removeLineItem(item.id)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          style={styles.removeBtn}
+                        >
+                          <Trash2 size={13} color={Colors.danger} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                  <TextInput
+                    style={styles.lineItemDescInput}
+                    value={item.description}
+                    onChangeText={(v) => updateLineItem(item.id, 'description', v)}
+                    placeholder="Description (e.g. Web Design)"
+                    placeholderTextColor={Colors.textTertiary}
+                    returnKeyType="next"
+                  />
+
+                  <View style={styles.lineItemNumbers}>
+                    <View style={styles.lineItemNumField}>
+                      <Text style={styles.lineItemNumLabel}>Qty</Text>
+                      <TextInput
+                        style={styles.lineItemNumInput}
+                        value={item.quantity ? String(item.quantity) : ''}
+                        onChangeText={(v) => updateLineItem(item.id, 'quantity', v)}
+                        placeholder="1"
+                        placeholderTextColor={Colors.textTertiary}
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <View style={styles.lineItemMultiply}>
+                      <Text style={styles.lineItemMultiplyText}>×</Text>
+                    </View>
+                    <View style={styles.lineItemNumField}>
+                      <Text style={styles.lineItemNumLabel}>Rate</Text>
+                      <TextInput
+                        style={styles.lineItemNumInput}
+                        value={item.rate ? String(item.rate) : ''}
+                        onChangeText={(v) => updateLineItem(item.id, 'rate', v)}
+                        placeholder="0.00"
+                        placeholderTextColor={Colors.textTertiary}
+                        keyboardType="numeric"
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <View style={styles.lineItemEquals}>
+                      <Text style={styles.lineItemEqualsText}>=</Text>
+                    </View>
+                    <View style={styles.lineItemTotalField}>
+                      <Text style={styles.lineItemNumLabel}>Total</Text>
+                      <View style={styles.lineItemTotalBox}>
+                        <Text style={styles.lineItemTotalValue}>
+                          {formatCurrency(itemTotal, currency)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
+
             <TouchableOpacity
               style={styles.addItemBtn}
               onPress={addLineItem}
               activeOpacity={0.7}
               testID="add-line-item-button"
             >
-              <Plus size={16} color={Colors.primary} strokeWidth={2.5} />
-              <Text style={styles.addItemText}>Add Another Item</Text>
+              <View style={styles.addItemIconWrap}>
+                <Plus size={16} color={Colors.textInverse} strokeWidth={2.5} />
+              </View>
+              <Text style={styles.addItemText}>Add Item</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.totalSection}>
-          <View style={styles.totalCard}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>
-                {formatCurrency(subtotal, currency)}
-              </Text>
-            </View>
-            <View style={styles.totalDivider} />
-            <View style={styles.totalRow}>
-              <Text style={styles.grandTotalLabel}>Total Due</Text>
-              <Text style={styles.grandTotalValue}>
-                {formatCurrency(subtotal, currency)}
-              </Text>
-            </View>
+        {/* SECTION 5: Notes */}
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<StickyNote size={15} color={Colors.primary} />}
+            title="Notes"
+            stepNumber={5}
+          />
+          <View style={styles.sectionBody}>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Payment terms, thank you note, bank details..."
+              placeholderTextColor={Colors.textTertiary}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
           </View>
         </View>
 
-        <View style={{ height: 100 }} />
+        {/* Summary Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Subtotal</Text>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(subtotal, currency)}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryGrandLabel}>Total Due</Text>
+            <Text style={styles.summaryGrandValue}>
+              {formatCurrency(subtotal, currency)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 110 }} />
       </ScrollView>
 
       <View style={styles.bottomBar}>
@@ -551,6 +693,7 @@ export default function CreateInvoiceScreen() {
             activeOpacity={0.85}
             testID="save-invoice-main-button"
           >
+            <Check size={18} color={Colors.textInverse} strokeWidth={2.5} />
             <Text style={styles.saveBtnText}>Save Invoice</Text>
           </TouchableOpacity>
         </View>
@@ -568,90 +711,128 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 20,
   },
+
   invoiceMetaBanner: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    backgroundColor: Colors.primaryBg,
-    borderRadius: 12,
+    backgroundColor: Colors.card,
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 24,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  metaBadge: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    gap: 6,
-  },
-  metaBadgeText: {
-    fontSize: 14,
-    fontWeight: '700' as const,
-    color: Colors.primary,
-  },
-  metaDate: {
-    fontSize: 12,
-    color: Colors.primaryLight,
-    fontWeight: '500' as const,
-  },
-  stepIndicator: {
+  metaLeft: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    marginBottom: 10,
-    paddingLeft: 2,
   },
-  stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
+  metaIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.primaryBg,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  stepNum: {
-    fontSize: 12,
-    fontWeight: '700' as const,
-    color: Colors.textInverse,
-  },
-  stepLabel: {
+  metaInvoiceNum: {
     fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    fontWeight: '700' as const,
+    color: Colors.text,
   },
-  card: {
+  metaDate: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontWeight: '500' as const,
+    marginTop: 1,
+  },
+  metaStatusBadge: {
+    backgroundColor: Colors.warningBg,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  metaStatusText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.warning,
+  },
+
+  section: {
     backgroundColor: Colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginBottom: 20,
+    marginBottom: 14,
     overflow: 'hidden' as const,
   },
-  cardHeader: {
+  sectionHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+    justifyContent: 'space-between' as const,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  cardTitle: {
+  sectionHeaderLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    flex: 1,
+  },
+  stepBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textInverse,
+  },
+  sectionHeaderText: {
+    flex: 1,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  sectionTitle: {
     fontSize: 15,
     fontWeight: '600' as const,
     color: Colors.text,
   },
-  fieldGroup: {
-    padding: 16,
-    paddingTop: 12,
+  sectionSubtitle: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 2,
+    paddingLeft: 21,
+  },
+  collapseIcon: {
+    padding: 4,
+  },
+  sectionBody: {
+    paddingHorizontal: 14,
+    paddingBottom: 16,
     gap: 12,
   },
+
   fieldWrapper: {},
   fieldRow: {
     flexDirection: 'row' as const,
     gap: 10,
+  },
+  fieldRowHalf: {
+    flex: 1,
   },
   label: {
     fontSize: 12,
@@ -683,6 +864,22 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlignVertical: 'top' as const,
   },
+  readonlyField: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  readonlyText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
   errorRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -695,26 +892,31 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     fontWeight: '500' as const,
   },
+
   currencySelector: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.surface,
     borderRadius: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
+  currencyLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
   currencyText: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: '500' as const,
+    fontWeight: '600' as const,
   },
   currencyDropdown: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
-    marginTop: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden' as const,
@@ -741,14 +943,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.text,
   },
+
   lineItemCard: {
     backgroundColor: Colors.surface,
     borderRadius: 12,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
-  lineItemTop: {
+  lineItemHeader: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
@@ -762,7 +965,17 @@ const styles = StyleSheet.create({
   },
   lineItemBadgeText: {
     fontSize: 11,
-    fontWeight: '600' as const,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  lineItemHeaderRight: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  lineItemLiveTotal: {
+    fontSize: 13,
+    fontWeight: '700' as const,
     color: Colors.primary,
   },
   removeBtn: {
@@ -786,22 +999,25 @@ const styles = StyleSheet.create({
   },
   lineItemNumbers: {
     flexDirection: 'row' as const,
-    gap: 8,
+    alignItems: 'flex-end' as const,
+    gap: 4,
   },
   lineItemNumField: {
     flex: 1,
   },
   lineItemNumLabel: {
-    fontSize: 11,
-    fontWeight: '500' as const,
+    fontSize: 10,
+    fontWeight: '600' as const,
     color: Colors.textTertiary,
     marginBottom: 4,
     textAlign: 'center' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
   },
   lineItemNumInput: {
     backgroundColor: Colors.card,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 9,
     fontSize: 14,
     color: Colors.text,
@@ -809,20 +1025,38 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
     textAlign: 'center' as const,
   },
+  lineItemMultiply: {
+    paddingBottom: 10,
+    paddingHorizontal: 2,
+  },
+  lineItemMultiplyText: {
+    fontSize: 14,
+    color: Colors.textTertiary,
+    fontWeight: '500' as const,
+  },
+  lineItemEquals: {
+    paddingBottom: 10,
+    paddingHorizontal: 2,
+  },
+  lineItemEqualsText: {
+    fontSize: 14,
+    color: Colors.textTertiary,
+    fontWeight: '500' as const,
+  },
   lineItemTotalField: {
-    flex: 1,
+    flex: 1.2,
     alignItems: 'center' as const,
   },
   lineItemTotalBox: {
     backgroundColor: Colors.primaryBg,
     borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 9,
     width: '100%',
     alignItems: 'center' as const,
   },
   lineItemTotalValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700' as const,
     color: Colors.primary,
   },
@@ -830,60 +1064,65 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 6,
-    paddingVertical: 14,
+    gap: 8,
+    paddingVertical: 13,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.primaryMuted,
-    borderStyle: 'dashed' as const,
     backgroundColor: Colors.primaryBg,
+  },
+  addItemIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   addItemText: {
     fontSize: 14,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
-  totalSection: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  totalCard: {
+
+  summaryCard: {
     backgroundColor: Colors.card,
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginTop: 2,
+    marginBottom: 8,
   },
-  totalRow: {
+  summaryRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
   },
-  totalLabel: {
+  summaryLabel: {
     fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
   },
-  totalValue: {
+  summaryValue: {
     fontSize: 15,
     fontWeight: '600' as const,
     color: Colors.text,
   },
-  totalDivider: {
+  summaryDivider: {
     height: 1,
     backgroundColor: Colors.border,
-    marginVertical: 14,
+    marginVertical: 12,
   },
-  grandTotalLabel: {
-    fontSize: 17,
+  summaryGrandLabel: {
+    fontSize: 16,
     fontWeight: '700' as const,
     color: Colors.text,
   },
-  grandTotalValue: {
+  summaryGrandValue: {
     fontSize: 22,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
+
   bottomBar: {
     position: 'absolute' as const,
     bottom: 0,
@@ -913,24 +1152,30 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     paddingHorizontal: 20,
-    paddingTop: 14,
+    paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 30 : 14,
   },
   bottomBarTotal: {},
   bottomBarTotalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.textTertiary,
     fontWeight: '500' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
   },
   bottomBarTotalValue: {
     fontSize: 20,
     fontWeight: '800' as const,
     color: Colors.text,
+    marginTop: 1,
   },
   saveBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
     backgroundColor: Colors.primary,
     borderRadius: 12,
-    paddingHorizontal: 28,
+    paddingHorizontal: 22,
     paddingVertical: 14,
     ...Platform.select({
       ios: {
