@@ -266,6 +266,8 @@ export default function InvoicePreviewScreen() {
                 <Text style={styles.notesContent}>{invoice.notes}</Text>
               </View>
             ) : null}
+
+            <Text style={styles.watermark}>Created with EasyInvoice</Text>
           </View>
         </View>
 
@@ -590,6 +592,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  watermark: {
+    marginTop: 24,
+    textAlign: 'center' as const,
+    fontSize: 11,
+    color: '#C8CED6',
+    letterSpacing: 0.3,
   },
   actionsSection: {},
   actionsRow: {
