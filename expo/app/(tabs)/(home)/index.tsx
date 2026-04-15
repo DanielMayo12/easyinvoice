@@ -147,6 +147,8 @@ export default function HomeScreen() {
                 <ArrowRight size={16} color="rgba(255,255,255,0.5)" strokeWidth={2} />
               </TouchableOpacity>
             </Animated.View>
+
+            <Text style={styles.heroHelperText}>Takes less than 30 seconds</Text>
           </LinearGradient>
         </Animated.View>
 
@@ -349,6 +351,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
+  },
+  heroHelperText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.35)',
+    textAlign: 'center' as const,
+    marginTop: 10,
+    letterSpacing: 0.2,
   },
   heroCtaText: {
     flex: 1,
