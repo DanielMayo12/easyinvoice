@@ -13,8 +13,7 @@ import {
   Send,
   Download,
   Trash2,
-  CheckCircle,
-  ArrowRight,
+  Check,
   FileText,
   Pencil,
   Copy,
@@ -136,12 +135,8 @@ export default function InvoicePreviewScreen() {
     );
   }
 
-  const nextAction =
-    invoice.status === 'draft'
-      ? { label: 'Mark as Sent', onPress: handleMarkSent }
-      : invoice.status === 'sent'
-        ? { label: 'Mark as Paid', onPress: handleMarkPaid }
-        : null;
+  const isSent = invoice.status === 'sent' || invoice.status === 'paid';
+  const isPaid = invoice.status === 'paid';
 
   return (
     <View style={styles.container}>
@@ -158,17 +153,46 @@ export default function InvoicePreviewScreen() {
       >
         <View style={styles.statusSection}>
           <StatusBadge status={invoice.status} />
-          {nextAction && (
-            <TouchableOpacity
-              style={styles.nextActionBtn}
-              onPress={nextAction.onPress}
-              activeOpacity={0.7}
-            >
-              <CheckCircle size={14} color={Colors.success} />
-              <Text style={styles.nextActionText}>{nextAction.label}</Text>
-              <ArrowRight size={12} color={Colors.success} />
-            </TouchableOpacity>
-          )}
+        </View>
+
+        <View style={styles.statusActionsRow}>
+          <TouchableOpacity
+            style={[
+              styles.statusBtn,
+              styles.sentBtn,
+              isSent && styles.statusBtnDisabled,
+            ]}
+            onPress={handleMarkSent}
+            activeOpacity={0.85}
+            disabled={isSent}
+            testID="mark-sent-button"
+          >
+            {isSent ? (
+              <Check size={16} color={Colors.textInverse} strokeWidth={3} />
+            ) : (
+              <Send size={15} color={Colors.textInverse} />
+            )}
+            <Text style={styles.statusBtnText}>
+              {isSent ? 'Sent' : 'Mark as Sent'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.statusBtn,
+              styles.paidBtn,
+              isPaid && styles.statusBtnDisabled,
+            ]}
+            onPress={handleMarkPaid}
+            activeOpacity={0.85}
+            disabled={isPaid}
+            testID="mark-paid-button"
+          >
+            <Check size={16} color={Colors.textInverse} strokeWidth={3} />
+            <Text style={styles.statusBtnText}>
+              {isPaid ? 'Paid' : 'Mark as Paid'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.document}>
@@ -380,23 +404,55 @@ const styles = StyleSheet.create({
   },
   statusSection: {
     flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  nextActionBtn: {
+  statusActionsRow: {
+    flexDirection: 'row' as const,
+    gap: 10,
+    marginBottom: 18,
+  },
+  statusBtn: {
+    flex: 1,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.successBg,
+    justifyContent: 'center' as const,
+    gap: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: { elevation: 2 },
+      web: {
+        shadowColor: Colors.shadow,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+    }),
   },
-  nextActionText: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: Colors.success,
+  sentBtn: {
+    backgroundColor: Colors.primary,
+  },
+  paidBtn: {
+    backgroundColor: Colors.success,
+  },
+  statusBtnDisabled: {
+    opacity: 0.55,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  statusBtnText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.textInverse,
+    letterSpacing: 0.2,
   },
   document: {
     backgroundColor: Colors.card,
