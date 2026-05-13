@@ -14,9 +14,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "app.rork.vxniw8gvqqslom8whgt52"
-    },
+  "supportsTablet": false,
+  "bundleIdentifier": "app.rork.vxniw8gvqqslom8whgt52",
+  "infoPlist": {
+    "NSPhotoLibraryUsageDescription": "EasyInvoice uses your photo library so you can upload business logos and images to customize professional invoices."
+  }
+},
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
